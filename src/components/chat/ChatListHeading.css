@@ -1,0 +1,109 @@
+.chat-list-heading {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 12px 16px 8px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.chat-list-heading__info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.chat-list-heading__title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 28px;
+    color: var(--chat-text, #131b2e);
+}
+
+.chat-list-heading__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 4px 8px;
+    border-radius: 20px;
+
+    background: #e2dfff;
+    color: var(--chat-primary, #3525cd);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.chat-list-heading__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.chat-list-heading__button {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+
+    transition: background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.chat-list-heading__button .material-symbols-outlined {
+    font-size: 20px;
+}
+
+.chat-list-heading__button--filter {
+    background: #e9e9f1;
+    color: var(--chat-muted, #464555);
+}
+
+.chat-list-heading__button--filter:hover {
+    background: #e2dfff;
+    color: var(--chat-primary, #3525cd);
+}
+
+.chat-list-heading__button--new {
+    background: var(--chat-primary, #3525cd);
+    color: #ffffff;
+}
+
+.chat-list-heading__button--new:hover {
+    background: #4d3de0;
+}
+
+.chat-list-heading__button:focus-visible {
+    outline: 2px solid var(--chat-primary, #3525cd);
+    outline-offset: 3px;
+}
+
+@media (max-width: 360px) {
+    .chat-list-heading__title {
+        font-size: 20px;
+    }
+
+    .chat-list-heading__actions {
+        gap: 4px;
+    }
+
+    .chat-list-heading__button {
+        width: 36px;
+        height: 36px;
+    }
+}

@@ -109,3 +109,41 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/*chat header*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: 'Inter', sans-serif;
+  color: #131b2e;
+  background-color: #faf8ff;
+
+  --chat-primary: #3525cd;
+  --chat-background: #faf8ff;
+  --chat-text: #131b2e;
+  --chat-muted: #464555;
+  --chat-surface: #ffffff;
+  --chat-soft: #eaedff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+#root {
+  min-height: 100dvh;
+}
