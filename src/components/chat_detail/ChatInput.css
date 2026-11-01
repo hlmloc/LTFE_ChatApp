@@ -1,0 +1,71 @@
+.chat-input-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: #000000;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.btn-camera {
+    background-color: #6366f1;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: white;
+    border: none;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.input-wrapper {
+    flex: 1;
+    background-color: #1f1f1f;
+    border-radius: 99px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    box-sizing: border-box;
+}
+
+.text-input {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    width: 100%;
+    font-size: 15px;
+    padding-right: 12px;
+}
+
+.text-input::placeholder {
+    color: #9ca3af;
+}
+
+.action-icons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: #d1d5db;
+    flex-shrink: 0;
+}
+
+.action-icons button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-icons button:hover {
+    color: white;
+}
