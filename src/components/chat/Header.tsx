@@ -1,10 +1,10 @@
-import "./ChatHeader.css";
+import "./Header.css";
 
-type ChatHeaderProps = {
+type HeaderProps = {
     onSearchClick: () => void;
     onProfileClick: () => void;
 };
-function ChatHeader({onSearchClick, onProfileClick,}: ChatHeaderProps) {
+function Header({onSearchClick, onProfileClick,}: HeaderProps) {
     return (
         <header className="chat-header">
             <div className="chat-header__inner">
@@ -45,4 +45,4 @@ function ChatHeader({onSearchClick, onProfileClick,}: ChatHeaderProps) {
     );
 }
 
-export default ChatHeader;
+export default Header;
