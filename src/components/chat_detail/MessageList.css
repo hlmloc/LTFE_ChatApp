@@ -1,0 +1,17 @@
+.message-list-container {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #000000;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-list-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.message-list-container::-webkit-scrollbar-thumb {
+    background-color: #222;
+    border-radius: 4px;
+}
