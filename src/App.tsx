@@ -1,7 +1,8 @@
-import ChatDetail from './pages/ChatDetail';
+import { RouterProvider } from 'react-router-dom';
+import { router } from './router/Router';
 
 function App() {
-    return <ChatDetail />;
+    return <RouterProvider router={router} />;
 }
 
 export default App;
