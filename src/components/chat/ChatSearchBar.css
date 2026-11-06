@@ -99,3 +99,7 @@
         font-size: 13px;
     }
 }
+.chat-search__button[aria-pressed="true"] {
+    background: #3525cd;
+    color: #ffffff;
+}

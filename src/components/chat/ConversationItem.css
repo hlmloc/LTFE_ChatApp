@@ -1,0 +1,228 @@
+.conversation-item {
+    position: relative;
+    width: 100%;
+    min-height: 82px;
+    padding: 13px 14px;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    border: none;
+    border-radius: 20px;
+    background: #ffffff;
+    color: #131b2e;
+
+    text-align: left;
+    box-shadow: 0 2px 7px rgba(21, 22, 59, 0.05);
+
+    cursor: pointer;
+    transition: background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.conversation-item:hover {
+    background: #f7f6ff;
+    box-shadow: 0 4px 14px rgba(21, 22, 59, 0.1);
+}
+
+.conversation-item:focus-visible {
+    outline: 2px solid #3525cd;
+    outline-offset: 2px;
+}
+
+/* Avatar */
+
+.conversation-item__avatar {
+    position: relative;
+
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    background: #dae2fd;
+    color: #131b2e;
+
+    font-size: 19px;
+    font-weight: 600;
+}
+
+.conversation-item__avatar--blue {
+    background: #dae2fd;
+    color: #1b2b5e;
+}
+
+.conversation-item__avatar--pink {
+    background: #ffdadb;
+    color: #95002b;
+}
+
+.conversation-item__avatar--mint {
+    background: #6ffbbe;
+    color: #006c49;
+}
+
+.conversation-item__avatar--violet {
+    background: #e2dfff;
+    color: #3525cd;
+}
+
+.conversation-item__avatar-image {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.conversation-item__online {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+
+    width: 16px;
+    height: 16px;
+
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #006c49;
+}
+
+/* Nội dung */
+
+.conversation-item__content {
+    flex: 1;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.conversation-item__top,
+.conversation-item__bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.conversation-item__name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.conversation-item__verified {
+    color: #3525cd;
+    flex-shrink: 0;
+}
+
+.conversation-item__time {
+    color: #777587;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.conversation-item--unread .conversation-item__time {
+    color: #3525cd;
+    font-weight: 600;
+}
+
+.conversation-item__preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    min-width: 0;
+    color: #464555;
+    font-size: 13px;
+}
+
+.conversation-item__message-icon {
+    display: flex;
+    align-items: center;
+    color: #3525cd;
+    flex-shrink: 0;
+}
+
+.conversation-item__message-icon:empty {
+    display: none;
+}
+
+.conversation-item__truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.conversation-item__mention {
+    padding: 2px 5px;
+    border-radius: 5px;
+
+    background: #ffdadb;
+    color: #95002b;
+
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* Trạng thái tin nhắn */
+
+.conversation-item__unread {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50px;
+    background: #3525cd;
+    color: #ffffff;
+
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.conversation-item__read {
+    color: #777587;
+    flex-shrink: 0;
+}
+
+.conversation-item__pin {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+
+    color: #3525cd;
+}
+
+@media (max-width: 380px) {
+    .conversation-item {
+        padding: 12px 10px;
+        gap: 9px;
+    }
+
+    .conversation-item__avatar {
+        width: 46px;
+        height: 46px;
+    }
+
+    .conversation-item__name {
+        font-size: 14px;
+    }
+}

@@ -1,18 +1,23 @@
+import { createBrowserRouter } from "react-router-dom";
 
-import { createBrowserRouter } from 'react-router-dom';
-import ChatDetail from '../pages/ChatDetail';
-import AuthPage from '../pages/AuthPage';
-import { Error } from './Error';
+import AuthPage from "../pages/AuthPage";
+import ChatDetail from "../pages/ChatDetail";
+import ChatsPage from "../pages/ChatsPage";
+import { Error } from "./Error";
 
 export const router = createBrowserRouter([
     {
-        path: '/',
+        path: "/",
         element: <AuthPage />,
         errorElement: <Error />,
     },
-
     {
-        path: '/chat',
+        path: "/chats",
+        element: <ChatsPage />,
+        errorElement: <Error />,
+    },
+    {
+        path: "/chat",
         element: <ChatDetail />,
         errorElement: <Error />,
     },

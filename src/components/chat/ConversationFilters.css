@@ -1,0 +1,71 @@
+.conversation-filters {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 10px 16px 12px;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.conversation-filters::-webkit-scrollbar {
+    display: none;
+}
+
+.conversation-filters__button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+
+    padding: 9px 14px;
+
+    border: none;
+    border-radius: 999px;
+
+    background: #eaedff;
+    color: #131b2e;
+
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+
+    flex-shrink: 0;
+    cursor: pointer;
+
+    transition: background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.conversation-filters__button:hover {
+    background: #dadfff;
+}
+
+.conversation-filters__button--active,
+.conversation-filters__button--active:hover {
+    background: #3525cd;
+    color: #ffffff;
+}
+
+.conversation-filters__icon {
+    font-size: 17px;
+}
+
+.conversation-filters__unread-dot {
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+    background: #be202b;
+
+    flex-shrink: 0;
+}
+
+.conversation-filters__button:focus-visible {
+    outline: 2px solid #3525cd;
+    outline-offset: 2px;
+}
