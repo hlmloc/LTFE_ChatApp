@@ -1,19 +1,12 @@
-
-#root {
-    width: 100%;
-    max-width: none;
-    border: none;
-    display: block;
-    text-align: left;
-}
-
 .auth-page {
+    width: 100%;
     min-height: 100vh;
     padding: 60px 20px;
     box-sizing: border-box;
     background: #faf8ff;
     font-family: Arial, sans-serif;
     color: #131b2e;
+    text-align: left;
 }
 
 .login-container {
