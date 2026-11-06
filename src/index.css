@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -110,9 +111,6 @@ code {
   background: var(--code-bg);
 }
 
-/*chat header*/
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :root {
   font-family: 'Inter', sans-serif;
   color: #131b2e;
@@ -145,5 +143,11 @@ button {
 }
 
 #root {
+  width: 100%;
+  max-width: none;
   min-height: 100dvh;
+  margin: 0;
+  border: none;
+  display: block;
+  text-align: left;
 }
