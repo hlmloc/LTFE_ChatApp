@@ -1,5 +1,7 @@
 import type { Conversation } from "../types/chat";
 import type { OnlineFriendData } from "../components/chat/OnlineFriendsSection";
+export const mockCurrentUser = { username: "khoalieu" };
+
 export const mockFriends: OnlineFriendData[] = [
     { id: "1", name: "Mai Linh", initials: "ML", isOnline: true, tone: "violet" },
     { id: "2", name: "Quốc Huy", initials: "QH", isOnline: true, tone: "blue" },

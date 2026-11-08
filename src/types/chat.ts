@@ -1,7 +1,5 @@
 export type ChatFilter = 'all' | 'unread' | 'pinned' | 'work';
 
-export type MediaFilter = 'file' | 'image' | null;
-
 export type MessageKind =
     | 'text'
     | 'file'

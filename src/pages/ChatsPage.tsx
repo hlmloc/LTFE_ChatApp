@@ -1,7 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import ChatDetail from "./ChatDetail";
 
-import Header from "../components/chat/Header";
 import ChatListHeading from "../components/chat/ChatListHeading";
 import ChatSearchBar from "../components/chat/ChatSearchBar";
 import OnlineFriendsSection from "../components/chat/OnlineFriendsSection";
@@ -9,8 +8,8 @@ import ConversationFilters from "../components/chat/ConversationFilters";
 import ConversationList from "../components/chat/ConversationList";
 import BottomNavigation from "../components/chat/BottomNavigation";
 
-import { mockConversations, mockFriends } from "../data/mockChat";
-import type { ChatFilter, MediaFilter } from "../types/chat";
+import { mockConversations, mockCurrentUser, mockFriends } from "../data/mockChat";
+import type { ChatFilter } from "../types/chat";
 
 import "./ChatsPage.css";
 
@@ -28,12 +27,8 @@ function ChatsPage() {
         name: string;
     } | null>(null);
 
-    const searchInputRef = useRef<HTMLInputElement>(null);
-
     const [searchQuery, setSearchQuery] = useState("");
     const [filter, setFilter] = useState<ChatFilter>("all");
-    const [mediaFilter, setMediaFilter] = useState<MediaFilter>(null);
-    const [showFilters, setShowFilters] = useState(true);
     const [notice, setNotice] = useState("");
 
     const unreadCount = mockConversations.filter(
@@ -58,14 +53,9 @@ function ChatsPage() {
                 (filter === "pinned" && chat.pinned) ||
                 (filter === "work" && chat.isWorkGroup === true);
 
-            const matchesMedia =
-                mediaFilter === null ||
-                (mediaFilter === "file" && chat.messageKind === "file") ||
-                (mediaFilter === "image" && chat.messageKind === "image");
-
-            return matchesSearch && matchesTab && matchesMedia;
+            return matchesSearch && matchesTab;
         });
-    }, [searchQuery, filter, mediaFilter]);
+    }, [searchQuery, filter]);
 
     function openConversation(conversationId: string) {
         const chat = mockConversations.find(
@@ -105,44 +95,15 @@ function ChatsPage() {
 
     return (
         <div className="chats-page">
-            <Header
-                onSearchClick={() => searchInputRef.current?.focus()}
-                onProfileClick={() =>
-                    setNotice("Trang hồ sơ đang được phát triển.")
-                }
-            />
-
             <main className="chats-page__content">
                 <div className="chats-layout">
                     {/* Cột trái: Danh sách cuộc trò chuyện */}
                     <section className="chats-sidebar">
-                        <ChatListHeading
-                            conversationCount={mockConversations.length}
-                            onFilterClick={() =>
-                                setShowFilters((previous) => !previous)
-                            }
-                            onNewChatClick={() =>
-                                setNotice(
-                                    "Tính năng tạo cuộc trò chuyện mới đang được phát triển."
-                                )
-                            }
-                        />
+                        <ChatListHeading username={mockCurrentUser.username} />
 
                         <ChatSearchBar
                             value={searchQuery}
                             onChange={setSearchQuery}
-                            inputRef={searchInputRef}
-                            activeMedia={mediaFilter}
-                            onAttachmentClick={() =>
-                                setMediaFilter((current) =>
-                                    current === "file" ? null : "file"
-                                )
-                            }
-                            onImageClick={() =>
-                                setMediaFilter((current) =>
-                                    current === "image" ? null : "image"
-                                )
-                            }
                         />
 
                         <OnlineFriendsSection
@@ -155,33 +116,13 @@ function ChatsPage() {
                             }
                         />
 
-                        {showFilters && (
-                            <ConversationFilters
-                                activeFilter={filter}
-                                totalCount={mockConversations.length}
-                                unreadCount={unreadCount}
-                                pinnedCount={pinnedCount}
-                                onChange={setFilter}
-                            />
-                        )}
-
-                        {mediaFilter !== null && (
-                            <div className="chats-page__media-filter">
-                                <span>
-                                    Đang lọc{" "}
-                                    {mediaFilter === "file"
-                                        ? "tệp đính kèm"
-                                        : "hình ảnh"}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setMediaFilter(null)}
-                                >
-                                    Bỏ lọc
-                                </button>
-                            </div>
-                        )}
+                        <ConversationFilters
+                            activeFilter={filter}
+                            totalCount={mockConversations.length}
+                            unreadCount={unreadCount}
+                            pinnedCount={pinnedCount}
+                            onChange={setFilter}
+                        />
 
                         <ConversationList
                             conversations={visibleConversations}
