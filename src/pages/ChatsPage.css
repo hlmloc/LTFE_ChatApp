@@ -70,28 +70,6 @@
     font-size: 14px;
 }
 
-.chats-page__media-filter {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 4px 12px;
-    font-size: 13px;
-    color: #464555;
-}
-
-.chats-page__media-filter button {
-    padding: 5px 10px;
-    border: none;
-    border-radius: 14px;
-    background: #e2dfff;
-    color: #3525cd;
-    cursor: pointer;
-}
-
-.chats-page__media-filter button:hover {
-    background: #d4cfff;
-}
-
 .chats-page__notice {
     position: fixed;
     z-index: 100;
@@ -119,8 +97,4 @@
     color: #ffffff;
     font-size: 20px;
     cursor: pointer;
-}
-
-.chat-header {
-    display: none;
 }
