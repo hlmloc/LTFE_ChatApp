@@ -1,3 +1,6 @@
+import type { Ref } from "react";
+import type { MediaFilter } from "../../types/chat";
+
 import "./ChatSearchBar.css";
 
 type ChatSearchBarProps = {
@@ -5,6 +8,8 @@ type ChatSearchBarProps = {
     onChange: (value: string) => void;
     onAttachmentClick: () => void;
     onImageClick: () => void;
+    inputRef?: Ref<HTMLInputElement>;
+    activeMedia?: MediaFilter;
 };
 
 function ChatSearchBar({
@@ -12,6 +17,8 @@ function ChatSearchBar({
                            onChange,
                            onAttachmentClick,
                            onImageClick,
+                           inputRef,
+                           activeMedia,
                        }: ChatSearchBarProps) {
     return (
         <div className="chat-search">
@@ -25,7 +32,8 @@ function ChatSearchBar({
                 </span>
 
                 <input
-                    type="text"
+                    ref={inputRef}
+                    type="search"
                     className="chat-search__input"
                     placeholder="Tìm kiếm tin nhắn, bạn bè, tệp..."
                     aria-label="Tìm kiếm cuộc trò chuyện"
@@ -34,11 +42,13 @@ function ChatSearchBar({
                 />
 
                 <div className="chat-search__actions">
+
                     <button
                         type="button"
                         className="chat-search__button"
-                        title="Lọc tập tin đính kèm"
-                        aria-label="Lọc tập tin đính kèm"
+                        title="Lọc tệp đính kèm"
+                        aria-label="Lọc tệp đính kèm"
+                        aria-pressed={activeMedia === "file"}
                         onClick={onAttachmentClick}
                     >
                         <span
@@ -54,6 +64,7 @@ function ChatSearchBar({
                         className="chat-search__button"
                         title="Lọc hình ảnh"
                         aria-label="Lọc hình ảnh"
+                        aria-pressed={activeMedia === "image"}
                         onClick={onImageClick}
                     >
                         <span
@@ -63,6 +74,7 @@ function ChatSearchBar({
                             image
                         </span>
                     </button>
+
                 </div>
             </div>
         </div>
