@@ -1,7 +1,7 @@
 .message-row {
     display: flex;
     width: 100%;
-    margin-bottom: 6px;
+    margin-bottom: 12px;
 }
 
 .message-row.mine {
@@ -23,21 +23,23 @@
 }
 
 .bubble {
+    max-width: 65%;
     padding: 10px 16px;
+
     border-radius: 20px;
-    max-width: 70%;
-    color: white;
     font-size: 15px;
-    line-height: 1.4;
+    line-height: 1.5;
     word-break: break-word;
 }
 
 .bubble.mine {
-    background-color: #a020f0;
-    border-bottom-right-radius: 4px;
+    background: #536dfe;
+    color: #ffffff;
+    border-bottom-right-radius: 5px;
 }
 
 .bubble.other {
-    background-color: #1f1f1f;
-    border-bottom-left-radius: 4px;
+    background: #f0f2f5;
+    color: #111827;
+    border-bottom-left-radius: 5px;
 }
