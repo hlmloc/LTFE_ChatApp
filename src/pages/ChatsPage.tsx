@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import ChatDetail from "./ChatDetail";
-
+import CreateGroupModal from "../components/chat/CreateGroupModal";
 import ChatListHeading from "../components/chat/ChatListHeading";
 import ChatSearchBar from "../components/chat/ChatSearchBar";
 import OnlineFriendsSection from "../components/chat/OnlineFriendsSection";
@@ -30,6 +30,7 @@ function ChatsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filter, setFilter] = useState<ChatFilter>("all");
     const [notice, setNotice] = useState("");
+    const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
 
     const unreadCount = mockConversations.filter(
         (chat) => chat.unreadCount > 0
@@ -97,9 +98,11 @@ function ChatsPage() {
         <div className="chats-page">
             <main className="chats-page__content">
                 <div className="chats-layout">
-                    {/* Cột trái: Danh sách cuộc trò chuyện */}
                     <section className="chats-sidebar">
-                        <ChatListHeading username={mockCurrentUser.username} />
+                        <ChatListHeading
+                            username={mockCurrentUser.username}
+                            onCreateGroup={() => setIsCreateGroupOpen(true)}
+                        />
 
                         <ChatSearchBar
                             value={searchQuery}
@@ -169,6 +172,19 @@ function ChatsPage() {
                         ×
                     </button>
                 </div>
+            )}
+            {isCreateGroupOpen && (
+                <CreateGroupModal
+                    friends={mockFriends}
+                    onClose={() => setIsCreateGroupOpen(false)}
+                    onCreate={(groupName, memberIds) => {
+                        console.log("Tên nhóm:", groupName);
+                        console.log("Danh sách thành viên:", memberIds);
+
+                        setIsCreateGroupOpen(false);
+                        setNotice(`Đã tạo nhóm "${groupName}" (bản thử nghiệm).`);
+                    }}
+                />
             )}
         </div>
     );
