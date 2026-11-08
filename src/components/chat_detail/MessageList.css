@@ -1,17 +1,26 @@
 .message-list-container {
     flex: 1;
+    min-height: 0;
+    width: 100%;
     overflow-y: auto;
-    background-color: #000000;
-    padding: 16px;
+
     display: flex;
     flex-direction: column;
+    padding: 24px 20px;
+    box-sizing: border-box;
+
+    background: #ffffff;
 }
 
 .message-list-container::-webkit-scrollbar {
-    width: 4px;
+    width: 5px;
 }
 
 .message-list-container::-webkit-scrollbar-thumb {
-    background-color: #222;
-    border-radius: 4px;
+    background: #d1d5db;
+    border-radius: 10px;
+}
+
+.message-list-container::-webkit-scrollbar-track {
+    background: transparent;
 }
