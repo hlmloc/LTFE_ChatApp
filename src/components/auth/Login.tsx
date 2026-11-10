@@ -2,12 +2,22 @@
 import { useState } from 'react'
 import { authService } from '../../services/AuthService'
 
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { loginSuccess } from "../../store/authSlice";
+import type { AppDispatch } from "../../store/Store";
+
 function Login() {
+
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [message, setMessage] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+
+    const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
+
 
     async function checkLogin() {
         if (isLoading) return
@@ -32,25 +42,30 @@ function Login() {
 
         setIsLoading(true)
 
+
         try {
             const result = await authService.login(
                 username.trim(),
                 password
-            )
+            );
 
-            setMessage('Đăng nhập thành công!')
-            setPassword('')
+            dispatch(loginSuccess({
+                username: result.username,
+                reLoginCode: result.reLoginCode
+            }));
 
-            void result
+            setPassword("");
+            navigate("/chats", { replace: true });
         } catch (err) {
             setError(
                 err instanceof Error
                     ? err.message
-                    : 'Đã xảy ra lỗi khi đăng nhập'
-            )
+                    : "Đã xảy ra lỗi khi đăng nhập"
+            );
         } finally {
-            setIsLoading(false)
+            setIsLoading(false);
         }
+
     }
 
     return (

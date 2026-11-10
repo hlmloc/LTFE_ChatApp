@@ -1,24 +1,25 @@
+
 import { createBrowserRouter } from "react-router-dom";
 
 import AuthPage from "../pages/AuthPage";
-import ChatDetail from "../pages/ChatDetail";
 import ChatsPage from "../pages/ChatsPage";
+import ProtectedRoute from "./ProtectedRoute";
 import { Error } from "./Error";
 
 export const router = createBrowserRouter([
     {
         path: "/",
         element: <AuthPage />,
-        errorElement: <Error />,
+        errorElement: <Error />
     },
     {
-        path: "/chats",
-        element: <ChatsPage />,
+        element: <ProtectedRoute />,
         errorElement: <Error />,
-    },
-    {
-        path: "/chat",
-        element: <ChatDetail conversationId={""} name={""} />,
-        errorElement: <Error />,
-    },
+        children: [
+            {
+                path: "/chats",
+                element: <ChatsPage />
+            }
+        ]
+    }
 ]);
