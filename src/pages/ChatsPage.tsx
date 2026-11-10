@@ -8,10 +8,15 @@ import ConversationFilters from "../components/chat/ConversationFilters";
 import ConversationList from "../components/chat/ConversationList";
 import BottomNavigation from "../components/chat/BottomNavigation";
 
-import { mockConversations, mockCurrentUser, mockFriends } from "../data/mockChat";
+import { mockConversations, mockFriends } from "../data/mockChat";
 import type { ChatFilter } from "../types/chat";
 
 import "./ChatsPage.css";
+
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store/Store";
+import { authSessionManager } from "../services/AuthSessionManager";
 
 function normalizeText(text: string): string {
     return text
@@ -31,7 +36,29 @@ function ChatsPage() {
     const [filter, setFilter] = useState<ChatFilter>("all");
     const [notice, setNotice] = useState("");
     const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+    const navigate = useNavigate();
 
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const { connectionStatus, isAuthenticated, username } = useSelector(
+        (state: RootState) => state.auth
+    );
+
+    async function handleLogout() {
+        if (isLoggingOut) return;
+
+        setIsLoggingOut(true);
+
+        const serverSuccess = await authSessionManager.logout();
+
+        if (!serverSuccess) {
+            window.alert(
+                "Đã đăng xuất trên thiết bị, nhưng chưa xác nhận được LOGOUT trên server."
+            );
+        }
+
+        navigate("/", { replace: true });
+    }
     const unreadCount = mockConversations.filter(
         (chat) => chat.unreadCount > 0
     ).length;
@@ -99,8 +126,31 @@ function ChatsPage() {
             <main className="chats-page__content">
                 <div className="chats-layout">
                     <section className="chats-sidebar">
+
+                        <div style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "12px 16px",
+                            gap: "12px"
+                        }}>
+    <span style={{ fontSize: "13px" }}>
+        {connectionStatus === "connected" && isAuthenticated
+            ? "Đã kết nối"
+            : "Mất kết nối / đang xác thực"}
+    </span>
+
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                disabled={isLoggingOut}
+                            >
+                                {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+                            </button>
+                        </div>
+
                         <ChatListHeading
-                            username={mockCurrentUser.username}
+                            username={username || "Người dùng"}
                             onCreateGroup={() => setIsCreateGroupOpen(true)}
                         />
 
@@ -188,6 +238,8 @@ function ChatsPage() {
             )}
         </div>
     );
+
+
 }
 
 export default ChatsPage;
