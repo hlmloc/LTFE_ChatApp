@@ -1,7 +1,6 @@
 const WS_URL = "wss://chat.longapp.io.vn/chat/chat";
 
 export type ChatEvent =
-    | "AUTH"
     | "REGISTER"
     | "LOGIN"
     | "RE_LOGIN"
@@ -18,24 +17,25 @@ export type ChatEvent =
 
 export type ChatResponse = {
     status: string;
-    event: ChatEvent;
+    event: string;
     data?: unknown;
     mes?: string;
 };
 
 type MessageHandler = (response: ChatResponse) => void;
+type ConnectionStatus = "open" | "closed";
+type ConnectionHandler = (status: ConnectionStatus) => void;
 
 class WebSocketService {
     private socket: WebSocket | null = null;
-
-    private listeners = new Map<ChatEvent, Set<MessageHandler>>();
+    private listeners = new Map<string, Set<MessageHandler>>();
+    private connectionListeners = new Set<ConnectionHandler>();
 
     connect(): void {
         if (
             this.socket?.readyState === WebSocket.CONNECTING ||
             this.socket?.readyState === WebSocket.OPEN
         ) {
-            console.log("WebSocket đang kết nối hoặc đã kết nối");
             return;
         }
 
@@ -43,54 +43,107 @@ class WebSocketService {
         this.socket = socket;
 
         socket.onopen = () => {
-            console.log("WebSocket đã kết nối thành công");
+            if (this.socket !== socket) return;
+            this.notifyConnection("open");
         };
 
         socket.onmessage = (event: MessageEvent) => {
+            if (this.socket !== socket) return;
+
             try {
-                const response: ChatResponse = JSON.parse(event.data);
+                const parsed: unknown = JSON.parse(event.data);
 
                 if (
-                    !response ||
-                    typeof response.event !== "string"
+                    !parsed ||
+                    typeof parsed !== "object" ||
+                    !("event" in parsed) ||
+                    !("status" in parsed) ||
+                    typeof parsed.event !== "string" ||
+                    typeof parsed.status !== "string"
                 ) {
-                    console.warn("Phản hồi không có event:", response);
+                    console.warn("WebSocket nhận phản hồi không hợp lệ");
                     return;
                 }
 
-                console.log("WebSocket nhận dữ liệu:", response);
-
+                const response = parsed as ChatResponse;
                 const handlers = this.listeners.get(response.event);
 
-                if (handlers) {
-                    handlers.forEach((handler) => {
-                        try {
-                            handler(response);
-                        } catch (error) {
-                            console.error("Lỗi xử lý sự kiện:", error);
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error("Không thể xử lý dữ liệu WebSocket:", error);
+                handlers?.forEach((handler) => {
+                    try {
+                        handler(response);
+                    } catch (error) {
+                        console.error("Lỗi xử lý sự kiện WebSocket:", error);
+                    }
+                });
+            } catch {
+                console.warn("WebSocket nhận dữ liệu không phải JSON");
             }
         };
 
         socket.onerror = () => {
-            console.error("WebSocket xảy ra lỗi");
+            if (this.socket === socket) {
+                console.warn("Kết nối WebSocket gặp lỗi");
+            }
         };
 
         socket.onclose = (event: CloseEvent) => {
-            console.log(
-                "WebSocket đã đóng:",
-                event.code,
-                event.reason
-            );
+            if (this.socket !== socket) return;
 
-            if (this.socket === socket) {
-                this.socket = null;
-            }
+            this.socket = null;
+            console.info("WebSocket đã đóng:", event.code, event.reason);
+            this.notifyConnection("closed");
         };
+    }
+
+    waitUntilConnected(): Promise<void> {
+        this.connect();
+        const socket = this.socket;
+
+        if (!socket) {
+            return Promise.reject(new Error("Không thể tạo WebSocket"));
+        }
+
+        if (socket.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            let settled = false;
+
+            const finish = (error?: Error) => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timeout);
+                socket.removeEventListener("open", handleOpen);
+                socket.removeEventListener("error", handleError);
+                socket.removeEventListener("close", handleClose);
+
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            };
+
+            const handleOpen = () => finish();
+            const handleError = () => finish(new Error("Không thể kết nối đến server"));
+            const handleClose = () => finish(new Error("Kết nối WebSocket đã đóng"));
+
+            const timeout = window.setTimeout(() => {
+                finish(new Error("Kết nối WebSocket quá thời gian chờ"));
+                if (this.socket === socket) this.disconnect();
+            }, 10000);
+
+            socket.addEventListener("open", handleOpen);
+            socket.addEventListener("error", handleError);
+            socket.addEventListener("close", handleClose);
+
+            if (socket.readyState === WebSocket.OPEN) {
+                finish();
+            } else if (socket.readyState >= WebSocket.CLOSING) {
+                handleClose();
+            }
+        });
     }
 
     send(event: ChatEvent, data?: object): void {
@@ -109,10 +162,7 @@ class WebSocketService {
         this.socket.send(JSON.stringify(request));
     }
 
-    subscribe(
-        event: ChatEvent,
-        handler: MessageHandler
-    ): () => void {
+    subscribe(event: string, handler: MessageHandler): () => void {
         if (!this.listeners.has(event)) {
             this.listeners.set(event, new Set());
         }
@@ -121,78 +171,37 @@ class WebSocketService {
 
         return () => {
             const handlers = this.listeners.get(event);
-
             handlers?.delete(handler);
-
-            if (handlers?.size === 0) {
-                this.listeners.delete(event);
-            }
+            if (handlers?.size === 0) this.listeners.delete(event);
         };
     }
 
-    waitUntilConnected(): Promise<void> {
-        this.connect();
+    subscribeConnection(handler: ConnectionHandler): () => void {
+        this.connectionListeners.add(handler);
+        return () => {
+            this.connectionListeners.delete(handler);
+        };
+    }
 
-        const socket = this.socket;
-
-        if (!socket) {
-            return Promise.reject(new Error("Không thể tạo WebSocket"));
-        }
-
-        if (socket.readyState === WebSocket.OPEN) {
-            return Promise.resolve();
-        }
-
-        return new Promise<void>((resolve, reject) => {
-            const timeout = window.setTimeout(() => {
-                cleanup();
-                reject(new Error("Kết nối WebSocket quá thời gian chờ"));
-            }, 10000);
-
-            const cleanup = () => {
-                window.clearTimeout(timeout);
-                socket.removeEventListener("open", handleOpen);
-                socket.removeEventListener("error", handleError);
-                socket.removeEventListener("close", handleClose);
-            };
-
-            const handleOpen = () => {
-                cleanup();
-                resolve();
-            };
-
-            const handleError = () => {
-                cleanup();
-                reject(new Error("Không thể kết nối đến server"));
-            };
-
-            const handleClose = () => {
-                cleanup();
-                reject(new Error("Kết nối đã bị đóng"));
-            };
-
-            socket.addEventListener("open", handleOpen);
-            socket.addEventListener("error", handleError);
-            socket.addEventListener("close", handleClose);
-
-            if (socket.readyState === WebSocket.OPEN) {
-                handleOpen();
-            } else if (
-                socket.readyState === WebSocket.CLOSING ||
-                socket.readyState === WebSocket.CLOSED
-            ) {
-                handleClose();
+    private notifyConnection(status: ConnectionStatus): void {
+        this.connectionListeners.forEach((handler) => {
+            try {
+                handler(status);
+            } catch (error) {
+                console.error("Lỗi lắng nghe kết nối:", error);
             }
         });
     }
 
     disconnect(): void {
-        if (!this.socket) return;
-
         const socket = this.socket;
-        this.socket = null;
+        if (!socket) return;
 
-        socket.close(1000, "Client disconnect");
+        this.socket = null;
+        if (socket.readyState < WebSocket.CLOSING) {
+            socket.close(1000, "Client disconnect");
+        }
+        this.notifyConnection("closed");
     }
 
     getStatus(): number {
