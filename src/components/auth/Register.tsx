@@ -1,14 +1,18 @@
-
 import { useState } from 'react'
+import { authService } from '../../services/AuthService'
 
 function Register() {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
+
     const [error, setError] = useState('')
     const [message, setMessage] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
 
-    function checkRegister() {
+    async function checkRegister() {
+        if (isLoading) return
+
         setError('')
         setMessage('')
 
@@ -42,7 +46,26 @@ function Register() {
             return
         }
 
-        setMessage('Thông tin đăng ký hợp lệ')
+        setIsLoading(true)
+
+        try {
+            const result = await authService.register(
+                username.trim(),
+                password
+            )
+
+            setMessage(result)
+            setPassword('')
+            setConfirmPassword('')
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Đã xảy ra lỗi khi đăng ký'
+            )
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -78,8 +101,9 @@ function Register() {
                 className="login-btn"
                 type="button"
                 onClick={checkRegister}
+                disabled={isLoading}
             >
-                Đăng ký
+                {isLoading ? 'Đang đăng ký...' : 'Đăng ký'}
             </button>
         </div>
     )

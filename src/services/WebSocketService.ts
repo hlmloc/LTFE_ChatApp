@@ -130,6 +130,62 @@ class WebSocketService {
         };
     }
 
+    waitUntilConnected(): Promise<void> {
+        this.connect();
+
+        const socket = this.socket;
+
+        if (!socket) {
+            return Promise.reject(new Error("Không thể tạo WebSocket"));
+        }
+
+        if (socket.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            const timeout = window.setTimeout(() => {
+                cleanup();
+                reject(new Error("Kết nối WebSocket quá thời gian chờ"));
+            }, 10000);
+
+            const cleanup = () => {
+                window.clearTimeout(timeout);
+                socket.removeEventListener("open", handleOpen);
+                socket.removeEventListener("error", handleError);
+                socket.removeEventListener("close", handleClose);
+            };
+
+            const handleOpen = () => {
+                cleanup();
+                resolve();
+            };
+
+            const handleError = () => {
+                cleanup();
+                reject(new Error("Không thể kết nối đến server"));
+            };
+
+            const handleClose = () => {
+                cleanup();
+                reject(new Error("Kết nối đã bị đóng"));
+            };
+
+            socket.addEventListener("open", handleOpen);
+            socket.addEventListener("error", handleError);
+            socket.addEventListener("close", handleClose);
+
+            if (socket.readyState === WebSocket.OPEN) {
+                handleOpen();
+            } else if (
+                socket.readyState === WebSocket.CLOSING ||
+                socket.readyState === WebSocket.CLOSED
+            ) {
+                handleClose();
+            }
+        });
+    }
+
     disconnect(): void {
         if (!this.socket) return;
 
