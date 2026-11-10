@@ -18,7 +18,7 @@ export const router = createBrowserRouter([
     },
     {
         path: "/chat",
-        element: <ChatDetail />,
+        element: <ChatDetail conversationId={""} name={""} />,
         errorElement: <Error />,
     },
 ]);
