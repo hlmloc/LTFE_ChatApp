@@ -1,17 +1,7 @@
-export type ChatFilter = 'all' | 'unread' | 'pinned' | 'work';
 
-export type MessageKind =
-    | 'text'
-    | 'file'
-    | 'image'
-    | 'voice'
-    | 'location';
-
-export type AvatarTone =
-    | 'blue'
-    | 'pink'
-    | 'mint'
-    | 'violet';
+export type ChatFilter = "all" | "direct" | "group";
+export type MessageKind = "text" | "file" | "image" | "voice" | "location";
+export type AvatarTone = "blue" | "pink" | "mint" | "violet";
 
 export type Conversation = {
     id: string;
@@ -19,7 +9,7 @@ export type Conversation = {
     initials: string;
     avatarUrl?: string;
     tone: AvatarTone;
-    type: 'direct' | 'group' | 'system';
+    type: "direct" | "group" | "system";
     preview: string;
     time: string;
     messageKind: MessageKind;
