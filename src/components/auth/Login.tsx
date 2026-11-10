@@ -1,13 +1,17 @@
 
 import { useState } from 'react'
+import { authService } from '../../services/AuthService'
 
 function Login() {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [message, setMessage] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
 
-    function checkLogin() {
+    async function checkLogin() {
+        if (isLoading) return
+
         setError('')
         setMessage('')
 
@@ -26,7 +30,27 @@ function Login() {
             return
         }
 
-        setMessage('Thông tin nhập hợp lệ')
+        setIsLoading(true)
+
+        try {
+            const result = await authService.login(
+                username.trim(),
+                password
+            )
+
+            setMessage('Đăng nhập thành công!')
+            setPassword('')
+
+            void result
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Đã xảy ra lỗi khi đăng nhập'
+            )
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -54,8 +78,9 @@ function Login() {
                 className="login-btn"
                 type="button"
                 onClick={checkLogin}
+                disabled={isLoading}
             >
-                Đăng nhập
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
         </div>
     )
