@@ -1,124 +1,110 @@
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+
 import ChatDetail from "./ChatDetail";
-import CreateGroupModal from "../components/chat/CreateGroupModal";
 import ChatListHeading from "../components/chat/ChatListHeading";
 import ChatSearchBar from "../components/chat/ChatSearchBar";
-import OnlineFriendsSection from "../components/chat/OnlineFriendsSection";
 import ConversationFilters from "../components/chat/ConversationFilters";
 import ConversationList from "../components/chat/ConversationList";
 import BottomNavigation from "../components/chat/BottomNavigation";
-
-import { mockConversations, mockFriends } from "../data/mockChat";
-import type { ChatFilter } from "../types/chat";
-
+import { conversationService, type ChatListItem } from "../services/ConversationService";
+import { authSessionManager } from "../services/AuthSessionManager";
+import type { RootState } from "../store/Store";
+import type { ChatFilter, Conversation } from "../types/chat";
 import "./ChatsPage.css";
 
-import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import type { RootState } from "../store/Store";
-import { authSessionManager } from "../services/AuthSessionManager";
-
-function normalizeText(text: string): string {
-    return text
-        .toLocaleLowerCase("vi")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d");
+function normalizeText(text: string) {
+    return text.toLocaleLowerCase("vi").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
 }
 
-function ChatsPage() {
-    const [selectedConversation, setSelectedConversation] = useState<{
-        id: string;
-        name: string;
-    } | null>(null);
+function toConversation(item: ChatListItem): Conversation {
+    const isGroup = item.type === 1;
 
+    return {
+        id: `${item.type}:${item.name}`,
+        name: item.name,
+        initials: item.name.slice(0, 2).toUpperCase(),
+        tone: isGroup ? "violet" : "blue",
+        type: isGroup ? "group" : "direct",
+        preview: "Nhấn để xem tin nhắn",
+        time: item.actionTime.slice(5, 16),
+        messageKind: "text",
+        unreadCount: 0,
+        pinned: false,
+        online: false
+    };
+}
+
+export default function ChatsPage() {
+    const navigate = useNavigate();
+    const { username, isAuthenticated, connectionStatus } = useSelector((state: RootState) => state.auth);
+
+    const [serverChats, setServerChats] = useState<ChatListItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [reload, setReload] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
     const [filter, setFilter] = useState<ChatFilter>("all");
+    const [selectedChat, setSelectedChat] = useState<{ id: string; name: string } | null>(null);
     const [notice, setNotice] = useState("");
-    const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
-    const navigate = useNavigate();
-
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-    const { connectionStatus, isAuthenticated, username } = useSelector(
-        (state: RootState) => state.auth
-    );
+    useEffect(() => {
+        let active = true;
+
+        if (!isAuthenticated || connectionStatus !== "connected") {
+            setServerChats([]);
+            setLoading(false);
+            return () => { active = false; };
+        }
+
+        setLoading(true);
+        setError("");
+
+        conversationService.getUserList()
+            .then(items => {
+                if (!active) return;
+                setServerChats(items);
+                setLoading(false);
+            })
+            .catch(err => {
+                if (!active) return;
+                setError(err instanceof Error ? err.message : "Không thể tải danh sách chat");
+                setLoading(false);
+            });
+
+        return () => { active = false; };
+    }, [isAuthenticated, connectionStatus, username, reload]);
+
+    const conversations = useMemo(() => serverChats.map(toConversation), [serverChats]);
+    const directCount = conversations.filter(chat => chat.type === "direct").length;
+    const groupCount = conversations.filter(chat => chat.type === "group").length;
+
+    const visibleConversations = useMemo(() => {
+        const keyword = normalizeText(searchQuery.trim());
+
+        return conversations.filter(chat => {
+            const matchesSearch = normalizeText(chat.name).includes(keyword);
+            const matchesFilter = filter === "all" || chat.type === filter;
+            return matchesSearch && matchesFilter;
+        });
+    }, [conversations, searchQuery, filter]);
+
+    function openConversation(id: string) {
+        const chat = conversations.find(item => item.id === id);
+        if (chat) setSelectedChat({ id: chat.id, name: chat.name });
+    }
 
     async function handleLogout() {
         if (isLoggingOut) return;
 
         setIsLoggingOut(true);
+        const success = await authSessionManager.logout();
 
-        const serverSuccess = await authSessionManager.logout();
-
-        if (!serverSuccess) {
-            window.alert(
-                "Đã đăng xuất trên thiết bị, nhưng chưa xác nhận được LOGOUT trên server."
-            );
-        }
-
+        if (!success) window.alert("Đã đăng xuất trên thiết bị, nhưng server chưa xác nhận LOGOUT.");
         navigate("/", { replace: true });
-    }
-    const unreadCount = mockConversations.filter(
-        (chat) => chat.unreadCount > 0
-    ).length;
-
-    const pinnedCount = mockConversations.filter(
-        (chat) => chat.pinned
-    ).length;
-
-    const visibleConversations = useMemo(() => {
-        const keyword = normalizeText(searchQuery.trim());
-
-        return mockConversations.filter((chat) => {
-            const matchesSearch = normalizeText(
-                `${chat.name} ${chat.preview}`
-            ).includes(keyword);
-
-            const matchesTab =
-                filter === "all" ||
-                (filter === "unread" && chat.unreadCount > 0) ||
-                (filter === "pinned" && chat.pinned) ||
-                (filter === "work" && chat.isWorkGroup === true);
-
-            return matchesSearch && matchesTab;
-        });
-    }, [searchQuery, filter]);
-
-    function openConversation(conversationId: string) {
-        const chat = mockConversations.find(
-            (item) => item.id === conversationId
-        );
-
-        if (!chat) return;
-
-        setSelectedConversation({
-            id: chat.id,
-            name: chat.name,
-        });
-    }
-
-    function openFriend(friendId: string) {
-        const friend = mockFriends.find(
-            (item) => item.id === friendId
-        );
-
-        if (!friend) return;
-
-        const chat = mockConversations.find(
-            (item) => item.name === friend.name
-        );
-
-        if (chat) {
-            setSelectedConversation({
-                id: chat.id,
-                name: chat.name,
-            });
-        } else {
-            setNotice(
-                "Cuộc trò chuyện với người này chưa có dữ liệu."
-            );
-        }
     }
 
     return (
@@ -126,77 +112,61 @@ function ChatsPage() {
             <main className="chats-page__content">
                 <div className="chats-layout">
                     <section className="chats-sidebar">
-
-                        <div style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "12px 16px",
-                            gap: "12px"
-                        }}>
-    <span style={{ fontSize: "13px" }}>
-        {connectionStatus === "connected" && isAuthenticated
-            ? "Đã kết nối"
-            : "Mất kết nối / đang xác thực"}
-    </span>
-
-                            <button
-                                type="button"
-                                onClick={handleLogout}
-                                disabled={isLoggingOut}
-                            >
+                        <div className="chats-page__status">
+                            <span>{isAuthenticated && connectionStatus === "connected" ? "Đã kết nối" : "Mất kết nối"}</span>
+                            <button type="button" disabled={isLoggingOut} onClick={handleLogout}>
                                 {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
                             </button>
                         </div>
 
                         <ChatListHeading
                             username={username || "Người dùng"}
-                            onCreateGroup={() => setIsCreateGroupOpen(true)}
+                            onCreateGroup={() => setNotice("Chức năng tạo nhóm sẽ tích hợp ở giai đoạn 2.")}
                         />
 
-                        <ChatSearchBar
-                            value={searchQuery}
-                            onChange={setSearchQuery}
-                        />
-
-                        <OnlineFriendsSection
-                            friends={mockFriends}
-                            onFriendClick={openFriend}
-                            onCreateStoryClick={() =>
-                                setNotice(
-                                    "Tính năng bản tin đang được phát triển."
-                                )
-                            }
-                        />
+                        <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                         <ConversationFilters
                             activeFilter={filter}
-                            totalCount={mockConversations.length}
-                            unreadCount={unreadCount}
-                            pinnedCount={pinnedCount}
+                            totalCount={conversations.length}
+                            directCount={directCount}
+                            groupCount={groupCount}
                             onChange={setFilter}
                         />
 
-                        <ConversationList
-                            conversations={visibleConversations}
-                            onSelect={openConversation}
-                        />
+                        <div className="chats-page__refresh-row">
+                            <span>Danh sách từ server</span>
+                            <button
+                                type="button"
+                                disabled={loading || !isAuthenticated}
+                                onClick={() => setReload(value => value + 1)}
+                            >
+                                Tải lại
+                            </button>
+                        </div>
+
+                        {loading ? (
+                            <p className="chats-page__state" role="status">Đang tải danh sách chat...</p>
+                        ) : error ? (
+                            <div className="chats-page__state" role="alert">
+                                <p>{error}</p>
+                                <button type="button" onClick={() => setReload(value => value + 1)}>Thử lại</button>
+                            </div>
+                        ) : conversations.length === 0 ? (
+                            <p className="chats-page__state">Chưa có cuộc trò chuyện hoặc phòng chat nào.</p>
+                        ) : (
+                            <ConversationList conversations={visibleConversations} onSelect={openConversation} />
+                        )}
                     </section>
 
                     <section className="chats-main">
-                        {selectedConversation ? (
-                            <ChatDetail
-                                conversationId={selectedConversation.id}
-                                name={selectedConversation.name}
-                            />
+                        {selectedChat ? (
+                            <ChatDetail conversationId={selectedChat.id} name={selectedChat.name} />
                         ) : (
                             <div className="chats-empty">
                                 <div className="chats-empty__content">
                                     <h2>Chào mừng đến với EchoChat</h2>
-                                    <p>
-                                        Chọn một cuộc trò chuyện để bắt đầu
-                                        nhắn tin.
-                                    </p>
+                                    <p>Chọn một cuộc trò chuyện để bắt đầu nhắn tin.</p>
                                 </div>
                             </div>
                         )}
@@ -204,42 +174,14 @@ function ChatsPage() {
                 </div>
             </main>
 
-            <BottomNavigation
-                onUnavailable={(page) =>
-                    setNotice(`Trang ${page} đang được phát triển.`)
-                }
-            />
+            <BottomNavigation onUnavailable={page => setNotice(`Trang ${page} đang được phát triển.`)} />
 
             {notice && (
                 <div className="chats-page__notice" role="status">
                     <span>{notice}</span>
-
-                    <button
-                        type="button"
-                        aria-label="Đóng thông báo"
-                        onClick={() => setNotice("")}
-                    >
-                        ×
-                    </button>
+                    <button type="button" onClick={() => setNotice("")} aria-label="Đóng thông báo">×</button>
                 </div>
-            )}
-            {isCreateGroupOpen && (
-                <CreateGroupModal
-                    friends={mockFriends}
-                    onClose={() => setIsCreateGroupOpen(false)}
-                    onCreate={(groupName, memberIds) => {
-                        console.log("Tên nhóm:", groupName);
-                        console.log("Danh sách thành viên:", memberIds);
-
-                        setIsCreateGroupOpen(false);
-                        setNotice(`Đã tạo nhóm "${groupName}" (bản thử nghiệm).`);
-                    }}
-                />
             )}
         </div>
     );
-
-
 }
-
-export default ChatsPage;
