@@ -21,6 +21,28 @@
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
+.create-group-note {
+    margin: 0 0 12px;
+    color: #77758a;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.create-group-error {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fff0f0;
+    color: #b42318;
+    font-size: 13px;
+}
+
+.create-group-modal__close:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
 .create-group-modal__header {
     position: relative;
     display: flex;

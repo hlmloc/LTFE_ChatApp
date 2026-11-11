@@ -1,65 +1,47 @@
-import { useMemo, useState } from "react";
-import { Search, X, Check } from "lucide-react";
-import type { OnlineFriendData } from "./OnlineFriendsSection";
 
+import { useState, type FormEvent } from "react";
+import { X } from "lucide-react";
 import "./CreateGroupModal.css";
 
 type CreateGroupModalProps = {
-    friends: OnlineFriendData[];
     onClose: () => void;
-    onCreate: (groupName: string, memberIds: string[]) => void;
+    onCreate: (groupName: string) => void;
+    isSubmitting: boolean;
+    error: string;
 };
 
-function CreateGroupModal({
-                              friends,
-                              onClose,
-                              onCreate,
-                          }: CreateGroupModalProps) {
+export default function CreateGroupModal({ onClose, onCreate, isSubmitting, error }: CreateGroupModalProps) {
     const [groupName, setGroupName] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-    const selectedFriends = friends.filter((friend) =>
-        selectedIds.includes(friend.id)
-    );
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
 
-    const filteredFriends = useMemo(() => {
-        const keyword = searchQuery.trim().toLocaleLowerCase("vi");
-
-        return friends.filter((friend) =>
-            friend.name.toLocaleLowerCase("vi").includes(keyword)
-        );
-    }, [friends, searchQuery]);
-
-    function toggleMember(friendId: string) {
-        setSelectedIds((current) =>
-            current.includes(friendId)
-                ? current.filter((id) => id !== friendId)
-                : [...current, friendId]
-        );
-    }
-
-    function handleCreate() {
-        const trimmedName = groupName.trim();
-
-        if (!trimmedName || selectedIds.length === 0) return;
-
-        onCreate(trimmedName, selectedIds);
+        if (isSubmitting || !groupName.trim()) return;
+        onCreate(groupName.trim());
     }
 
     return (
-        <div className="create-group-overlay" onClick={onClose}>
-            <section
+        <div
+            className="create-group-overlay"
+            onClick={event => {
+                if (event.target === event.currentTarget && !isSubmitting) onClose();
+            }}
+        >
+            <form
                 className="create-group-modal"
-                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-group-title"
+                onSubmit={handleSubmit}
             >
                 <header className="create-group-modal__header">
-                    <h2>Tạo nhóm mới</h2>
+                    <h2 id="create-group-title">Tạo nhóm mới</h2>
 
                     <button
                         type="button"
                         className="create-group-modal__close"
                         onClick={onClose}
+                        disabled={isSubmitting}
                         aria-label="Đóng"
                     >
                         <X size={24} />
@@ -68,9 +50,7 @@ function CreateGroupModal({
 
                 <div className="create-group-modal__body">
                     <div className="create-group-modal__field">
-                        <label htmlFor="group-name">
-                            Tên nhóm
-                        </label>
+                        <label htmlFor="group-name">Tên nhóm</label>
 
                         <input
                             id="group-name"
@@ -78,116 +58,29 @@ function CreateGroupModal({
                             placeholder="Ví dụ: Nhóm dự án Frontend"
                             value={groupName}
                             maxLength={40}
-                            onChange={(event) =>
-                                setGroupName(event.target.value)
-                            }
+                            autoFocus
+                            disabled={isSubmitting}
+                            onChange={event => setGroupName(event.target.value)}
                         />
                     </div>
 
-                    <div className="create-group-modal__members">
-                        <label>Thành viên</label>
+                    <p className="create-group-note">
+                        Sau khi tạo nhóm, bạn sẽ là thành viên đầu tiên của phòng.
+                    </p>
 
-                        {selectedFriends.length > 0 && (
-                            <div className="create-group-modal__chips">
-                                {selectedFriends.map((friend) => (
-                                    <span
-                                        className="create-group-chip"
-                                        key={friend.id}
-                                    >
-                                        {friend.name}
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                toggleMember(friend.id)
-                                            }
-                                            aria-label={`Bỏ ${friend.name}`}
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="create-group-search">
-                            <Search size={18} />
-
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm người dùng..."
-                                value={searchQuery}
-                                onChange={(event) =>
-                                    setSearchQuery(event.target.value)
-                                }
-                            />
-                        </div>
-
-                        <div className="create-group-member-list">
-                            {filteredFriends.map((friend) => {
-                                const isSelected = selectedIds.includes(
-                                    friend.id
-                                );
-
-                                return (
-                                    <button
-                                        type="button"
-                                        className="create-group-member"
-                                        key={friend.id}
-                                        onClick={() =>
-                                            toggleMember(friend.id)
-                                        }
-                                    >
-                                        <span
-                                            className={`create-group-member__avatar create-group-member__avatar--${friend.tone}`}
-                                        >
-                                            {friend.initials}
-                                        </span>
-
-                                        <span className="create-group-member__info">
-                                            <strong>{friend.name}</strong>
-                                            <small>
-                                                {friend.isOnline
-                                                    ? "Đang hoạt động"
-                                                    : "Ngoại tuyến"}
-                                            </small>
-                                        </span>
-
-                                        <span
-                                            className={`create-group-member__check ${
-                                                isSelected ? "is-selected" : ""
-                                            }`}
-                                        >
-                                            {isSelected && <Check size={16} />}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-
-                            {filteredFriends.length === 0 && (
-                                <p className="create-group-empty">
-                                    Không tìm thấy người dùng.
-                                </p>
-                            )}
-                        </div>
-                    </div>
+                    {error && <p className="create-group-error" role="alert">{error}</p>}
                 </div>
 
                 <footer className="create-group-modal__footer">
                     <button
-                        type="button"
+                        type="submit"
                         className="create-group-submit"
-                        disabled={
-                            !groupName.trim() || selectedIds.length === 0
-                        }
-                        onClick={handleCreate}
+                        disabled={!groupName.trim() || isSubmitting}
                     >
-                        Tạo nhóm ({selectedIds.length})
+                        {isSubmitting ? "Đang tạo nhóm..." : "Tạo nhóm"}
                     </button>
                 </footer>
-            </section>
+            </form>
         </div>
     );
 }
-
-export default CreateGroupModal;
