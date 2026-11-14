@@ -47,6 +47,8 @@ export default function ChatsPage() {
 
     const [serverChats, setServerChats] = useState<ChatListItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const [lastSynced, setLastSynced] = useState("");
     const [error, setError] = useState("");
     const [reload, setReload] = useState(0);
 
@@ -71,6 +73,10 @@ export default function ChatsPage() {
 
         if (!isAuthenticated || connectionStatus !== "connected") {
             setServerChats([]);
+            setSelectedChat(null);
+            setHasLoaded(false);
+            setLastSynced("");
+            setError("");
             setLoading(false);
             return () => { active = false; };
         }
@@ -78,18 +84,34 @@ export default function ChatsPage() {
         setLoading(true);
         setError("");
 
-        conversationService.getUserList()
-            .then(items => {
-                if (!active) return;
-                setServerChats(items);
-                setLoading(false);
-            })
-            .catch(err => {
-                if (!active) return;
-                setError(err instanceof Error ? err.message : "Không thể tải danh sách chat");
-                setLoading(false);
+        const request = reload === 0
+            ? conversationService.getUserList()
+            : conversationService.refreshUserList();
+
+        request.then(items => {
+            if (!active) return;
+
+            setServerChats(items);
+            setHasLoaded(true);
+            setLastSynced(new Date().toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit"
+            }));
+
+            setSelectedChat(current => {
+                if (!current) return null;
+
+                const exists = items.some(item => `${item.type}:${item.name}` === current.id);
+                return exists ? current : null;
             });
 
+            setLoading(false);
+        }).catch(err => {
+            if (!active) return;
+
+            setError(err instanceof Error ? err.message : "Không thể tải danh sách chat");
+            setLoading(false);
+        });
         return () => { active = false; };
     }, [isAuthenticated, connectionStatus, username, reload]);
 
@@ -304,28 +326,31 @@ export default function ChatsPage() {
                         />
 
                         <div className="chats-page__refresh-row">
-                            <span>Danh sách từ server</span>
+                            <span>{lastSynced ? `Đã đồng bộ lúc ${lastSynced}` : "Danh sách từ server"}</span>
+
                             <button
                                 type="button"
-                                disabled={loading || !isAuthenticated}
+                                disabled={loading || !isAuthenticated || connectionStatus !== "connected"}
                                 onClick={() => setReload(value => value + 1)}
                             >
-                                Tải lại
+                                {loading && hasLoaded ? "Đang đồng bộ..." : "Tải lại"}
                             </button>
                         </div>
 
-                        {loading ? (
-                            <p className="chats-page__state" role="status">
-                                Đang tải danh sách chat...
-                            </p>
-                        ) : error ? (
+                        {error && (
                             <div className="chats-page__state" role="alert">
-                                <p>{error}</p>
+                                <p>Không thể đồng bộ danh sách: {error}</p>
                                 <button type="button" onClick={() => setReload(value => value + 1)}>
                                     Thử lại
                                 </button>
                             </div>
-                        ) : conversations.length === 0 ? (
+                        )}
+
+                        {loading && !hasLoaded ? (
+                            <p className="chats-page__state" role="status">
+                                Đang tải danh sách chat...
+                            </p>
+                        ) : !hasLoaded && error ? null : conversations.length === 0 ? (
                             <p className="chats-page__state">
                                 Chưa có cuộc trò chuyện hoặc phòng chat nào.
                             </p>
