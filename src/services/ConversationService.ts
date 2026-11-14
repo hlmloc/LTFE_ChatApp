@@ -1,4 +1,3 @@
-
 import { webSocketService } from "./WebSocketService";
 
 export type ChatListItem = {
@@ -21,22 +20,42 @@ class ConversationService {
 
     getUserList(): Promise<ChatListItem[]> {
         if (this.pending) return this.pending;
+        return this.enqueueRequest();
+    }
 
-        const request = this.loadUserList();
+    refreshUserList(): Promise<ChatListItem[]> {
+        return this.enqueueRequest();
+    }
+
+    private enqueueRequest(): Promise<ChatListItem[]> {
+        const previous = this.pending;
+
+        const request = (async () => {
+            if (previous) {
+                try {
+                    await previous;
+                } catch {
+                    // Vẫn tải lại nếu yêu cầu trước bị lỗi
+                }
+            }
+
+            return this.loadUserList();
+        })();
+
         this.pending = request;
 
         const clear = () => {
             if (this.pending === request) this.pending = null;
         };
-        void request.then(clear, clear);
 
+        void request.then(clear, clear);
         return request;
     }
 
     private async loadUserList(): Promise<ChatListItem[]> {
         await webSocketService.waitUntilConnected();
 
-        return new Promise((resolve, reject) => {
+        return new Promise<ChatListItem[]>((resolve, reject) => {
             let finished = false;
             const unsubscribers: Array<() => void> = [];
 
@@ -46,8 +65,9 @@ class ConversationService {
 
             function finish(error?: Error, chats: ChatListItem[] = []) {
                 if (finished) return;
+
                 finished = true;
-                clearTimeout(timeout);
+                window.clearTimeout(timeout);
                 unsubscribers.forEach(unsubscribe => unsubscribe());
 
                 if (error) reject(error);
