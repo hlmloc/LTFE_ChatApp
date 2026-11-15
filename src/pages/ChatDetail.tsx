@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 
 import MessageList from "../components/chat_detail/MessageList";
 import ChatInput from "../components/chat_detail/ChatInput";
@@ -12,9 +12,10 @@ import {
     setMessagesLoading,
     setMessagesError,
     clearMessages,
+    addMessage,
 } from "../store/slice/messageSlice";
 
-import type { AppDispatch } from "../store/Store";
+import type { RootState, AppDispatch } from "../store/Store";
 
 import "./ChatDetail.css";
 
@@ -29,6 +30,23 @@ export default function ChatDetail({
                                    }: ChatDetailProps) {
     const dispatch = useDispatch<AppDispatch>();
 
+    const username = useSelector(
+        (state: RootState) => state.auth.username
+    );
+
+    const handleSendMessage = async (content: string) => {
+        if (!username) {
+            throw new Error("Không tìm thấy tài khoản đăng nhập");
+        }
+
+        const message = await messageService.sendPeopleMessage(
+            name,
+            content,
+            username
+        );
+
+        dispatch(addMessage(message));
+    };
     useEffect(() => {
         let isActive = true;
 
@@ -43,7 +61,7 @@ export default function ChatDetail({
                 dispatch(
                     setMessages({
                         chatName: name,
-                        messages,
+                        messages: [...messages].reverse(),
                     })
                 );
             })
@@ -63,6 +81,7 @@ export default function ChatDetail({
             isActive = false;
         };
     }, [name, conversationId, dispatch]);
+
     return (
         <div
             className="chat-detail-container"
@@ -72,7 +91,7 @@ export default function ChatDetail({
 
             <MessageList />
 
-            <ChatInput />
+            <ChatInput onSend={handleSendMessage} />
         </div>
     );
 }

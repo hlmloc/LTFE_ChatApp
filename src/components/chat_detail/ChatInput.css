@@ -70,3 +70,13 @@
 .action-icons button:hover {
     color: #536dfe;
 }
+.send-error {
+    color: #dc2626;
+    font-size: 13px;
+    margin: 0;
+}
+
+.action-icons button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
