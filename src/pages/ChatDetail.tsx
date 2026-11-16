@@ -59,8 +59,12 @@ export default function ChatDetail({
         dispatch(clearMessages());
         dispatch(setMessagesLoading(true));
 
-        messageService
-            .getPeopleChatMessages(name, 1)
+        const loadMessages =
+            type === "direct"
+                ? messageService.getPeopleChatMessages(name, 1)
+                : messageService.getRoomChatMessages(name, 1);
+
+        loadMessages
             .then((messages) => {
                 if (!isActive) return;
 
@@ -86,7 +90,7 @@ export default function ChatDetail({
         return () => {
             isActive = false;
         };
-    }, [name, conversationId, dispatch]);
+    }, [name, conversationId, type, dispatch]);
     useEffect(() => {
         if (!username) return;
 
