@@ -218,7 +218,14 @@
     white-space: nowrap;
 }
 
-.chats-page__room-actions button {
+.chats-page__room-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.chats-page__room-actions .chats-page__leave-room {
     flex-shrink: 0;
     background: #fff0f0;
     color: #b42318;

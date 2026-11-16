@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
@@ -6,6 +8,7 @@ import ChatInput from "../components/chat_detail/ChatInput";
 import ChatHeader from "../components/chat_detail/ChatHeader";
 
 import { messageService } from "../services/MessageService";
+import { conversationService } from "../services/ConversationService";
 
 import {
     setMessages,
@@ -22,13 +25,31 @@ import "./ChatDetail.css";
 type ChatDetailProps = {
     conversationId: string;
     name: string;
+    type: "direct" | "group";
+    onBack?: () => void;
 };
 
 export default function ChatDetail({
-                                       conversationId,
-                                       name,
-                                   }: ChatDetailProps) {
+    conversationId,
+    name,
+    type,
+    onBack,
+}: ChatDetailProps) {
     const dispatch = useDispatch<AppDispatch>();
+    const [online, setOnline] = useState<boolean>();
+
+    useEffect(() => {
+        if (type !== "direct") return;
+
+        let active = true;
+        conversationService.checkUserOnline(name).then(result => {
+            if (active) setOnline(result);
+        }).catch(() => {
+            // Chỉ hiện trạng thái khi server trả về kết quả kiểm tra.
+        });
+
+        return () => { active = false; };
+    }, [name, type]);
 
     const username = useSelector(
         (state: RootState) => state.auth.username
@@ -53,8 +74,11 @@ export default function ChatDetail({
         dispatch(clearMessages());
         dispatch(setMessagesLoading(true));
 
-        messageService
-            .getPeopleChatMessages(name, 1)
+        const request = type === "group"
+            ? messageService.getRoomChatMessages(name, 1)
+            : messageService.getPeopleChatMessages(name, 1);
+
+        request
             .then((messages) => {
                 if (!isActive) return;
 
@@ -80,58 +104,13 @@ export default function ChatDetail({
         return () => {
             isActive = false;
         };
-    }, [name, conversationId, dispatch]);
-    useEffect(() => {
-        if (!username) return;
-
-        const unsubscribe = webSocketService.subscribe(
-            "SEND_CHAT",
-            (response) => {
-                if (response.status !== "success") return;
-
-                if (!response.data || typeof response.data !== "object") {
-                    return;
-                }
-
-                const data = response.data as {
-                    name?: string;
-                    to?: string;
-                    mes?: string;
-                    type?: number;
-                };
-
-                if (
-                    data.type !== 0 ||
-                    data.to !== username ||
-                    data.name !== name ||
-                    typeof data.mes !== "string"
-                ) {
-                    return;
-                }
-
-                dispatch(
-                    addMessage({
-                        id: Date.now(),
-                        name: data.name,
-                        to: data.to,
-                        mes: data.mes,
-                        createAt: new Date().toISOString(),
-                        type: 0,
-                    })
-                );
-            }
-        );
-
-        return () => {
-            unsubscribe();
-        };
-    }, [username, name, dispatch]);
+    }, [name, type, conversationId, dispatch]);
     return (
         <div
             className="chat-detail-container"
             data-conversation-id={conversationId}
         >
-            <ChatHeader name={name} />
+            <ChatHeader name={name} online={online} onBack={onBack} />
 
             <MessageList />
 

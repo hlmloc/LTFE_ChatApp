@@ -19,6 +19,8 @@ import type { RootState } from "../store/Store";
 import type { ChatFilter, Conversation } from "../types/chat";
 import "./ChatsPage.css";
 
+type SelectedChat = { id: string; name: string; type: "direct" | "group" };
+
 function normalizeText(text: string) {
     return text.toLocaleLowerCase("vi").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
 }
@@ -46,6 +48,7 @@ export default function ChatsPage() {
     const { username, isAuthenticated, connectionStatus } = useSelector((state: RootState) => state.auth);
 
     const [serverChats, setServerChats] = useState<ChatListItem[]>([]);
+    const [confirmedRoomChanges, setConfirmedRoomChanges] = useState(new Map<string, boolean>());
     const [loading, setLoading] = useState(false);
     const [hasLoaded, setHasLoaded] = useState(false);
     const [lastSynced, setLastSynced] = useState("");
@@ -54,7 +57,10 @@ export default function ChatsPage() {
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filter, setFilter] = useState<ChatFilter>("all");
-    const [selectedChat, setSelectedChat] = useState<{ id: string; name: string; type: "direct" | "group" } | null>(null);
+    const [selectedChat, setSelectedChat] = useState<SelectedChat | null>(null);
+    const [directUsername, setDirectUsername] = useState("");
+    const [directChatError, setDirectChatError] = useState("");
+    const [isCheckingUser, setIsCheckingUser] = useState(false);
 
     const [notice, setNotice] = useState("");
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -73,6 +79,7 @@ export default function ChatsPage() {
 
         if (!isAuthenticated || connectionStatus !== "connected") {
             setServerChats([]);
+            setConfirmedRoomChanges(new Map());
             setSelectedChat(null);
             setHasLoaded(false);
             setLastSynced("");
@@ -98,13 +105,6 @@ export default function ChatsPage() {
                 minute: "2-digit"
             }));
 
-            setSelectedChat(current => {
-                if (!current) return null;
-
-                const exists = items.some(item => `${item.type}:${item.name}` === current.id);
-                return exists ? current : null;
-            });
-
             setLoading(false);
         }).catch(err => {
             if (!active) return;
@@ -115,7 +115,18 @@ export default function ChatsPage() {
         return () => { active = false; };
     }, [isAuthenticated, connectionStatus, username, reload]);
 
-    const conversations = useMemo(() => serverChats.map(toConversation), [serverChats]);
+    const conversations = useMemo(() => {
+        const chats = serverChats.filter(item => item.type === 0 || confirmedRoomChanges.get(item.name) !== false);
+        const roomsOnServer = new Set(chats.filter(item => item.type === 1).map(item => item.name));
+        const missingRooms: ChatListItem[] = [];
+
+        // Phòng đã được xác nhận có thể chưa xuất hiện trong danh sách chat gần đây.
+        for (const [name, joined] of confirmedRoomChanges) {
+            if (joined && !roomsOnServer.has(name)) missingRooms.push({ name, type: 1, actionTime: "" });
+        }
+
+        return [...missingRooms, ...chats].map(toConversation);
+    }, [serverChats, confirmedRoomChanges]);
 
     const directCount = conversations.filter(chat => chat.type === "direct").length;
     const groupCount = conversations.filter(chat => chat.type === "group").length;
@@ -139,6 +150,56 @@ export default function ChatsPage() {
                 name: chat.name,
                 type: chat.type === "group" ? "group" : "direct"
             });
+        }
+    }
+
+    async function handleStartDirectChat(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (isCheckingUser) return;
+
+        const name = directUsername.trim();
+        if (!name) return;
+        if (name === username) {
+            setDirectChatError("Hãy nhập tên người dùng khác.");
+            return;
+        }
+
+        setDirectChatError("");
+        setIsCheckingUser(true);
+        try {
+            if (!(await conversationService.checkUserExists(name))) {
+                setDirectChatError(`Không tìm thấy tài khoản "${name}".`);
+                return;
+            }
+
+            setSelectedChat({ id: `0:${name}`, name, type: "direct" });
+            setDirectUsername("");
+        } catch (error) {
+            setDirectChatError(error instanceof Error ? error.message : "Không thể kiểm tra tài khoản");
+        } finally {
+            setIsCheckingUser(false);
+        }
+    }
+
+    function updateRoomList(name: string, joined: boolean) {
+        setConfirmedRoomChanges(current => new Map(current).set(name, joined));
+        setReload(value => value + 1);
+
+        if (joined) {
+            setSearchQuery("");
+            setFilter("group");
+            setSelectedChat({ id: `1:${name}`, name, type: "group" });
+        } else {
+            setSelectedChat(current => current?.id === `1:${name}` ? null : current);
+        }
+    }
+
+    async function copyRoomName(name: string) {
+        try {
+            await navigator.clipboard.writeText(name);
+            setNotice(`Đã sao chép tên phòng "${name}".`);
+        } catch {
+            setNotice(`Hãy sao chép tên phòng thủ công: ${name}`);
         }
     }
 
@@ -180,7 +241,7 @@ export default function ChatsPage() {
 
             setIsCreateGroupOpen(false);
             setNotice(`Đã tạo nhóm "${room.name}" thành công.`);
-            setReload(value => value + 1);
+            updateRoomList(room.name, true);
         } catch (err) {
             setCreateGroupError(err instanceof Error ? err.message : "Không thể tạo nhóm");
         } finally {
@@ -211,10 +272,8 @@ export default function ChatsPage() {
             await roomService.joinRoom(roomName);
 
             setJoinRoomName("");
-            setSearchQuery("");
-            setFilter("group");
             setNotice(`Đã tham gia phòng "${roomName}" thành công.`);
-            setReload(value => value + 1);
+            updateRoomList(roomName, true);
         } catch (error) {
             setJoinRoomError(error instanceof Error ? error.message : "Không thể tham gia phòng");
         } finally {
@@ -238,9 +297,8 @@ export default function ChatsPage() {
         try {
             await roomService.outRoom(room.name);
 
-            setSelectedChat(current => current?.id === room.id ? null : current);
             setNotice(`Đã rời phòng "${room.name}" thành công.`);
-            setReload(value => value + 1);
+            updateRoomList(room.name, false);
         } catch (error) {
             setNotice(error instanceof Error ? error.message : "Không thể rời phòng");
         } finally {
@@ -315,6 +373,29 @@ export default function ChatsPage() {
                             )}
                         </form>
 
+                        <form className="chats-page__join" onSubmit={handleStartDirectChat}>
+                            <label htmlFor="direct-username">Bắt đầu chat 1-1</label>
+                            <div className="chats-page__join-fields">
+                                <input
+                                    id="direct-username"
+                                    value={directUsername}
+                                    onChange={event => {
+                                        setDirectUsername(event.target.value);
+                                        setDirectChatError("");
+                                    }}
+                                    placeholder="Nhập tên người dùng"
+                                    autoComplete="off"
+                                    disabled={isCheckingUser}
+                                />
+                                <button type="submit" disabled={isCheckingUser || !directUsername.trim()}>
+                                    {isCheckingUser ? "Đang kiểm tra..." : "Mở chat"}
+                                </button>
+                            </div>
+                            {directChatError && (
+                                <p className="chats-page__join-error" role="alert">{directChatError}</p>
+                            )}
+                        </form>
+
                         <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
 
                         <ConversationFilters
@@ -346,19 +427,19 @@ export default function ChatsPage() {
                             </div>
                         )}
 
-                        {loading && !hasLoaded ? (
-                            <p className="chats-page__state" role="status">
-                                Đang tải danh sách chat...
-                            </p>
-                        ) : !hasLoaded && error ? null : conversations.length === 0 ? (
-                            <p className="chats-page__state">
-                                Chưa có cuộc trò chuyện hoặc phòng chat nào.
-                            </p>
-                        ) : (
+                        {conversations.length > 0 ? (
                             <ConversationList
                                 conversations={visibleConversations}
                                 onSelect={openConversation}
                             />
+                        ) : loading && !hasLoaded ? (
+                            <p className="chats-page__state" role="status">
+                                Đang tải danh sách chat...
+                            </p>
+                        ) : !hasLoaded && error ? null : (
+                            <p className="chats-page__state">
+                                Chưa có cuộc trò chuyện hoặc phòng chat nào.
+                            </p>
                         )}
                     </section>
 
@@ -369,20 +450,29 @@ export default function ChatsPage() {
                                     <div className="chats-page__room-actions">
                                         <span>Phòng: {selectedChat.name}</span>
 
-                                        <button
-                                            type="button"
-                                            disabled={isLeavingRoom}
-                                            onClick={() => void handleLeaveRoom()}
-                                        >
-                                            {isLeavingRoom ? "Đang rời phòng..." : "Rời phòng"}
-                                        </button>
+                                        <div className="chats-page__room-buttons">
+                                            <button type="button" onClick={() => void copyRoomName(selectedChat.name)}>
+                                                Sao chép tên phòng
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="chats-page__leave-room"
+                                                disabled={isLeavingRoom}
+                                                onClick={() => void handleLeaveRoom()}
+                                            >
+                                                {isLeavingRoom ? "Đang rời phòng..." : "Rời phòng"}
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
                                 <div className="chats-page__chat-body">
                                     <ChatDetail
+                                        key={selectedChat.id}
                                         conversationId={selectedChat.id}
                                         name={selectedChat.name}
+                                        type={selectedChat.type}
+                                        onBack={() => setSelectedChat(null)}
                                     />
                                 </div>
                             </div>
