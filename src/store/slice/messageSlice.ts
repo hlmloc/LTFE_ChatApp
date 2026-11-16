@@ -48,6 +48,9 @@ const messageSlice = createSlice({
             state.error = null;
             state.currentChatName = null;
         },
+        addMessage: (state, action: PayloadAction<Message>) => {
+            state.messages.push(action.payload);
+        },
     },
 });
 
@@ -56,6 +59,7 @@ export const {
     setMessagesLoading,
     setMessagesError,
     clearMessages,
+    addMessage,
 } = messageSlice.actions;
 
 export default messageSlice.reducer;

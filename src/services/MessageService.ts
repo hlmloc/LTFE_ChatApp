@@ -122,6 +122,37 @@ class MessageService {
             );
         }
     }
+    sendPeopleMessage(to: string, mes: string, myUsername: string): Promise<Message> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                await webSocketService.waitUntilConnected();
+
+                webSocketService.send("SEND_CHAT", {
+                    type: "people",
+                    to,
+                    mes,
+                });
+
+                const message: Message = {
+                    id: Date.now(),
+                    name: myUsername,
+                    to: to,
+                    mes: mes,
+                    createAt: new Date().toISOString(),
+                    type: 0,
+                };
+
+                resolve(message);
+
+            } catch (error) {
+                reject(
+                    error instanceof Error
+                        ? error
+                        : new Error("Không thể gửi tin nhắn")
+                );
+            }
+        });
+    }
 }
 
 export const messageService = new MessageService();
