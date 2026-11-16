@@ -1,5 +1,7 @@
 import { webSocketService } from "./WebSocketService";
 
+type UserCheckEvent = "CHECK_USER_EXIST" | "CHECK_USER_ONLINE";
+
 export type ChatListItem = {
     name: string;
     type: 0 | 1;
@@ -17,6 +19,7 @@ function isChatListItem(value: unknown): value is ChatListItem {
 
 class ConversationService {
     private pending: Promise<ChatListItem[]> | null = null;
+    private pendingChecks = new Map<UserCheckEvent, { user: string; request: Promise<boolean> }>();
 
     getUserList(): Promise<ChatListItem[]> {
         if (this.pending) return this.pending;
@@ -25,6 +28,41 @@ class ConversationService {
 
     refreshUserList(): Promise<ChatListItem[]> {
         return this.enqueueRequest();
+    }
+
+    checkUserExists(username: string): Promise<boolean> {
+        return this.checkUser("CHECK_USER_EXIST", username);
+    }
+
+    checkUserOnline(username: string): Promise<boolean> {
+        return this.checkUser("CHECK_USER_ONLINE", username);
+    }
+
+    private checkUser(event: UserCheckEvent, username: string): Promise<boolean> {
+        const user = username.trim();
+        if (!user) return Promise.reject(new Error("Vui lòng nhập tên người dùng"));
+
+        // Phản hồi chỉ có boolean, nên mỗi event xử lý lần lượt từng username.
+        const previous = this.pendingChecks.get(event);
+        if (previous?.user === user) return previous.request;
+
+        const request = (async () => {
+            await previous?.request.catch(() => undefined);
+            const data = await this.request(event, "Không kiểm tra được tài khoản", { user });
+
+            if (!data || typeof data !== "object" || !("status" in data) || typeof data.status !== "boolean") {
+                throw new Error(`Dữ liệu ${event} không đúng định dạng`);
+            }
+
+            return data.status;
+        })();
+
+        this.pendingChecks.set(event, { user, request });
+        const clear = () => {
+            if (this.pendingChecks.get(event)?.request === request) this.pendingChecks.delete(event);
+        };
+        void request.then(clear, clear);
+        return request;
     }
 
     private enqueueRequest(): Promise<ChatListItem[]> {
@@ -53,17 +91,27 @@ class ConversationService {
     }
 
     private async loadUserList(): Promise<ChatListItem[]> {
-        await webSocketService.waitUntilConnected();
+        const data = await this.request("GET_USER_LIST", "Không lấy được danh sách chat");
+        if (!Array.isArray(data) || !data.every(isChatListItem)) {
+            throw new Error("Dữ liệu GET_USER_LIST không đúng định dạng");
+        }
+        return data;
+    }
 
-        return new Promise<ChatListItem[]>((resolve, reject) => {
+    private request(event: "GET_USER_LIST" | UserCheckEvent, errorMessage: string, payload?: { user: string }): Promise<unknown> {
+        if (webSocketService.getStatus() !== WebSocket.OPEN) {
+            return Promise.reject(new Error("WebSocket chưa kết nối"));
+        }
+
+        return new Promise<unknown>((resolve, reject) => {
             let finished = false;
             const unsubscribers: Array<() => void> = [];
 
             const timeout = window.setTimeout(() => {
-                finish(new Error("Hết thời gian chờ danh sách chat"));
+                finish(new Error(`Hết thời gian chờ ${event}`));
             }, 10000);
 
-            function finish(error?: Error, chats: ChatListItem[] = []) {
+            function finish(error?: Error, data?: unknown) {
                 if (finished) return;
 
                 finished = true;
@@ -71,17 +119,12 @@ class ConversationService {
                 unsubscribers.forEach(unsubscribe => unsubscribe());
 
                 if (error) reject(error);
-                else resolve(chats);
+                else resolve(data);
             }
 
-            unsubscribers.push(webSocketService.subscribe("GET_USER_LIST", response => {
+            unsubscribers.push(webSocketService.subscribe(event, response => {
                 if (response.status !== "success") {
-                    finish(new Error(response.mes || "Không lấy được danh sách chat"));
-                    return;
-                }
-
-                if (!Array.isArray(response.data) || !response.data.every(isChatListItem)) {
-                    finish(new Error("Dữ liệu GET_USER_LIST không đúng định dạng"));
+                    finish(new Error(response.mes || errorMessage));
                     return;
                 }
 
@@ -99,9 +142,9 @@ class ConversationService {
             }));
 
             try {
-                webSocketService.send("GET_USER_LIST");
+                webSocketService.send(event, payload);
             } catch (error) {
-                finish(error instanceof Error ? error : new Error("Không thể gửi GET_USER_LIST"));
+                finish(error instanceof Error ? error : new Error(`Không thể gửi ${event}`));
             }
         });
     }

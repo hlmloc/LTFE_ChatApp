@@ -65,7 +65,8 @@ export default function CreateGroupModal({ onClose, onCreate, isSubmitting, erro
                     </div>
 
                     <p className="create-group-note">
-                        Sau khi tạo nhóm, bạn sẽ là thành viên đầu tiên của phòng.
+                        Bạn sẽ là chủ phòng. Sau khi tạo, sao chép tên phòng và gửi cho bạn bè
+                        để họ tự tham gia.
                     </p>
 
                     {error && <p className="create-group-error" role="alert">{error}</p>}

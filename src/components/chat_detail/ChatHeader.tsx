@@ -5,11 +5,13 @@ import "./ChatHeader.css";
 type ChatHeaderProps = {
     name?: string;
     onBack?: () => void;
+    online?: boolean;
 };
 
 export default function ChatHeader({
                                        name,
                                        onBack,
+                                       online,
                                    }: ChatHeaderProps) {
     return (
         <div className="chat-header-container">
@@ -33,6 +35,9 @@ export default function ChatHeader({
                     <span className="user-name">
                         {name ?? "Cuộc trò chuyện"}
                     </span>
+                    {online !== undefined && (
+                        <span className="user-status">{online ? "Đang trực tuyến" : "Ngoại tuyến"}</span>
+                    )}
                 </div>
             </div>
 
