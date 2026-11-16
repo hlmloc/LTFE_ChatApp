@@ -1,12 +1,10 @@
+
 import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
 
-type HistoryEvent = "GET_PEOPLE_CHAT_MES" | "GET_ROOM_CHAT_MES";
-
 interface PendingRequest {
     key: string;
-    event: HistoryEvent;
     name: string;
     page: number;
     resolve: (messages: Message[]) => void;
@@ -23,15 +21,7 @@ class MessageService {
         name: string,
         page: number = 1
     ): Promise<Message[]> {
-        return this.getChatMessages("GET_PEOPLE_CHAT_MES", name, page);
-    }
-
-    getRoomChatMessages(name: string, page: number = 1): Promise<Message[]> {
-        return this.getChatMessages("GET_ROOM_CHAT_MES", name, page);
-    }
-
-    private getChatMessages(event: HistoryEvent, name: string, page: number): Promise<Message[]> {
-        const key = JSON.stringify([event, name, page]);
+        const key = `${name}-${page}`;
 
         const existingRequest = this.pendingRequests.get(key);
 
@@ -42,7 +32,6 @@ class MessageService {
         const request = new Promise<Message[]>((resolve, reject) => {
             this.requestQueue.push({
                 key,
-                event,
                 name,
                 page,
                 resolve,
@@ -57,7 +46,7 @@ class MessageService {
         return request;
     }
 
-    private processQueue(): void {
+    private async processQueue(): Promise<void> {
         if (this.isProcessing || this.requestQueue.length === 0) {
             return;
         }
@@ -66,7 +55,7 @@ class MessageService {
 
         const request = this.requestQueue.shift()!;
 
-        const unsubscribers: Array<() => void> = [];
+        let unsubscribe = () => {};
         let timeout: ReturnType<typeof setTimeout>;
         let finished = false;
 
@@ -77,7 +66,7 @@ class MessageService {
             if (finished) return;
             finished = true;
 
-            unsubscribers.forEach(unsubscribe => unsubscribe());
+            unsubscribe();
             clearTimeout(timeout);
 
             this.pendingRequests.delete(request.key);
@@ -89,51 +78,38 @@ class MessageService {
                 request.resolve(messages ?? []);
             }
 
-            queueMicrotask(() => this.processQueue());
+            void this.processQueue();
         };
 
-        unsubscribers.push(webSocketService.subscribe(
-            request.event,
+        unsubscribe = webSocketService.subscribe(
+            "GET_PEOPLE_CHAT_MES",
             (response: ChatResponse) => {
-                if (response.status !== "success") {
+                if (response.status === "success") {
+                    if (Array.isArray(response.data)) {
+                        finish(response.data as Message[]);
+                    } else {
+                        finish(
+                            undefined,
+                            new Error("Dữ liệu tin nhắn không hợp lệ")
+                        );
+                    }
+                } else {
                     finish(
                         undefined,
                         new Error(response.mes || "Không thể lấy tin nhắn")
                     );
-                    return;
                 }
-
-                let data = response.data;
-                if (request.event === "GET_ROOM_CHAT_MES") {
-                    if (!data || typeof data !== "object" || !("name" in data) || !("chatMess" in data)) {
-                        finish(undefined, new Error("Dữ liệu phòng không hợp lệ"));
-                        return;
-                    }
-                    if (data.name !== request.name) return;
-                    data = data.chatMess;
-                }
-
-                if (Array.isArray(data)) finish(data as Message[]);
-                else finish(undefined, new Error("Dữ liệu tin nhắn không hợp lệ"));
             }
-        ));
-
-        unsubscribers.push(webSocketService.subscribe("AUTH", response => {
-            if (response.status === "error") {
-                finish(undefined, new Error(response.mes || "Phiên đăng nhập không hợp lệ"));
-            }
-        }));
-
-        unsubscribers.push(webSocketService.subscribeConnection(status => {
-            if (status === "closed") finish(undefined, new Error("Mất kết nối WebSocket"));
-        }));
+        );
 
         timeout = setTimeout(() => {
             finish(undefined, new Error("Hết thời gian chờ server"));
         }, 15000);
 
         try {
-            webSocketService.send(request.event, {
+            await webSocketService.waitUntilConnected();
+
+            webSocketService.send("GET_PEOPLE_CHAT_MES", {
                 name: request.name,
                 page: request.page,
             });
@@ -146,18 +122,36 @@ class MessageService {
             );
         }
     }
+    sendPeopleMessage(to: string, mes: string, myUsername: string): Promise<Message> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                await webSocketService.waitUntilConnected();
 
-    sendMessage(type: "people" | "room", to: string, mes: string, username: string): Message {
-        webSocketService.send("SEND_CHAT", { type, to, mes });
+                webSocketService.send("SEND_CHAT", {
+                    type: "people",
+                    to,
+                    mes,
+                });
 
-        return {
-            id: Date.now(),
-            name: username,
-            to,
-            mes,
-            createAt: new Date().toISOString(),
-            type: type === "room" ? 1 : 0,
-        };
+                const message: Message = {
+                    id: Date.now(),
+                    name: myUsername,
+                    to: to,
+                    mes: mes,
+                    createAt: new Date().toISOString(),
+                    type: 0,
+                };
+
+                resolve(message);
+
+            } catch (error) {
+                reject(
+                    error instanceof Error
+                        ? error
+                        : new Error("Không thể gửi tin nhắn")
+                );
+            }
+        });
     }
 }
 
