@@ -52,7 +52,8 @@ class MessageService {
     ): Promise<Message[]> {
         return new Promise((resolve, reject) => {
             let finished = false;
-            let unsubscribe = () => {};
+            let unsubscribe = () => {
+            };
 
             const timeout = setTimeout(() => {
                 finish(undefined, new Error("Hết thời gian chờ server"));
@@ -85,12 +86,28 @@ class MessageService {
                         );
                         return;
                     }
+                    const data = response.data;
 
                     if (
-                        !response.data ||
-                        typeof response.data !== "object" ||
-                        !("chatMess" in response.data) ||
-                        !Array.isArray(response.data.chatMess)
+                        !data ||
+                        typeof data !== "object" ||
+                        !("name" in data) ||
+                        typeof data.name !== "string"
+                    ) {
+                        finish(
+                            undefined,
+                            new Error("Dữ liệu phòng từ server không hợp lệ")
+                        );
+                        return;
+                    }
+
+                    if (data.name !== name) {
+                        return;
+                    }
+
+                    if (
+                        !("chatMess" in data) ||
+                        !Array.isArray(data.chatMess)
                     ) {
                         finish(
                             undefined,
@@ -99,7 +116,7 @@ class MessageService {
                         return;
                     }
 
-                    finish(response.data.chatMess as Message[]);
+                    finish(data.chatMess as Message[]);
                 }
             );
 
@@ -120,6 +137,57 @@ class MessageService {
                 });
         });
     }
+
+    private async sendMessage(
+        to: string,
+        mes: string,
+        myUsername: string,
+        chatType: "people" | "room"
+    ): Promise<Message> {
+        const content = mes.trim();
+
+        if (!content) {
+            throw new Error("Tin nhắn không được để trống");
+        }
+
+        if (!to.trim()) {
+            throw new Error("Không tìm thấy người nhận hoặc nhóm");
+        }
+
+        await webSocketService.waitUntilConnected();
+
+        webSocketService.send("SEND_CHAT", {
+            type: chatType,
+            to,
+            mes: content,
+        });
+
+        return {
+            id: Date.now(),
+            name: myUsername,
+            to,
+            mes: content,
+            createAt: new Date().toISOString(),
+            type: chatType === "people" ? 0 : 1,
+        };
+    }
+
+    sendPeopleMessage(
+        to: string,
+        mes: string,
+        myUsername: string
+    ): Promise<Message> {
+        return this.sendMessage(to, mes, myUsername, "people");
+    }
+
+    sendRoomMessage(
+        to: string,
+        mes: string,
+        myUsername: string
+    ): Promise<Message> {
+        return this.sendMessage(to, mes, myUsername, "room");
+    }
+
     private async processQueue(): Promise<void> {
         if (this.isProcessing || this.requestQueue.length === 0) {
             return;
@@ -129,7 +197,8 @@ class MessageService {
 
         const request = this.requestQueue.shift()!;
 
-        let unsubscribe = () => {};
+        let unsubscribe = () => {
+        };
         let timeout: ReturnType<typeof setTimeout>;
         let finished = false;
 
@@ -195,37 +264,6 @@ class MessageService {
                     : new Error("Không thể lấy lịch sử tin nhắn")
             );
         }
-    }
-    sendPeopleMessage(to: string, mes: string, myUsername: string): Promise<Message> {
-        return new Promise(async (resolve, reject) => {
-            try {
-                await webSocketService.waitUntilConnected();
-
-                webSocketService.send("SEND_CHAT", {
-                    type: "people",
-                    to,
-                    mes,
-                });
-
-                const message: Message = {
-                    id: Date.now(),
-                    name: myUsername,
-                    to: to,
-                    mes: mes,
-                    createAt: new Date().toISOString(),
-                    type: 0,
-                };
-
-                resolve(message);
-
-            } catch (error) {
-                reject(
-                    error instanceof Error
-                        ? error
-                        : new Error("Không thể gửi tin nhắn")
-                );
-            }
-        });
     }
 }
 

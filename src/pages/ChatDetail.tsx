@@ -6,7 +6,7 @@ import ChatInput from "../components/chat_detail/ChatInput";
 import ChatHeader from "../components/chat_detail/ChatHeader";
 import { conversationService } from "../services/ConversationService";
 import { messageService } from "../services/MessageService";
-
+import { roomService } from "../services/RoomService";
 import {
     setMessages,
     setMessagesLoading,
@@ -45,27 +45,40 @@ export default function ChatDetail({
             throw new Error("Không tìm thấy tài khoản đăng nhập");
         }
 
-        const message = await messageService.sendPeopleMessage(
-            name,
-            content,
-            username
-        );
+        const message =
+            type === "direct"
+                ? await messageService.sendPeopleMessage(
+                    name,
+                    content,
+                    username
+                )
+                : await messageService.sendRoomMessage(
+                    name,
+                    content,
+                    username
+                );
 
         dispatch(addMessage(message));
     };
+
+
     useEffect(() => {
         let isActive = true;
 
-        dispatch(clearMessages());
-        dispatch(setMessagesLoading(true));
+        const loadMessages = async () => {
+            dispatch(clearMessages());
+            dispatch(setMessagesLoading(true));
 
-        const loadMessages =
-            type === "direct"
-                ? messageService.getPeopleChatMessages(name, 1)
-                : messageService.getRoomChatMessages(name, 1);
+            try {
+                if (type === "group") {
+                    await roomService.joinRoom(name);
+                }
 
-        loadMessages
-            .then((messages) => {
+                const messages =
+                    type === "direct"
+                        ? await messageService.getPeopleChatMessages(name, 1)
+                        : await messageService.getRoomChatMessages(name, 1);
+
                 if (!isActive) return;
 
                 dispatch(
@@ -74,8 +87,7 @@ export default function ChatDetail({
                         messages: [...messages].reverse(),
                     })
                 );
-            })
-            .catch((error) => {
+            } catch (error) {
                 if (!isActive) return;
 
                 dispatch(
@@ -85,12 +97,16 @@ export default function ChatDetail({
                             : "Không thể tải lịch sử tin nhắn"
                     )
                 );
-            });
+            }
+        };
+
+        loadMessages();
 
         return () => {
             isActive = false;
         };
     }, [name, conversationId, type, dispatch]);
+
     useEffect(() => {
         if (!username) return;
 
@@ -111,22 +127,40 @@ export default function ChatDetail({
                 };
 
                 if (
-                    data.type !== 0 ||
-                    data.to !== username ||
-                    data.name !== name ||
+                    typeof data.name !== "string" ||
                     typeof data.mes !== "string"
                 ) {
                     return;
+                }
+
+                if (type === "direct") {
+                    if (
+                        data.type !== 0 ||
+                        data.to !== username ||
+                        data.name !== name
+                    ) {
+                        return;
+                    }
+                }
+
+                if (type === "group") {
+                    if (
+                        data.type !== 1 ||
+                        data.to !== name ||
+                        data.name === username
+                    ) {
+                        return;
+                    }
                 }
 
                 dispatch(
                     addMessage({
                         id: Date.now(),
                         name: data.name,
-                        to: data.to,
+                        to: data.to!,
                         mes: data.mes,
                         createAt: new Date().toISOString(),
-                        type: 0,
+                        type: data.type as 0 | 1,
                     })
                 );
             }
@@ -135,7 +169,7 @@ export default function ChatDetail({
         return () => {
             unsubscribe();
         };
-    }, [username, name, dispatch]);
+    }, [username, name, type, dispatch]);
     useEffect(() => {
         if (type !== "direct") return;
 
