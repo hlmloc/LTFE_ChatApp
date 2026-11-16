@@ -1,516 +1,328 @@
-
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ChevronDown, Copy, LogIn, LogOut, MessageCircle, RefreshCw, SquarePen, UsersRound, X } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
-import ChatDetail from "./ChatDetail";
-import ChatListHeading from "../components/chat/ChatListHeading";
+import BottomNavigation from "../components/chat/BottomNavigation";
 import ChatSearchBar from "../components/chat/ChatSearchBar";
 import ConversationFilters from "../components/chat/ConversationFilters";
 import ConversationList from "../components/chat/ConversationList";
-import BottomNavigation from "../components/chat/BottomNavigation";
-import CreateGroupModal from "../components/chat/CreateGroupModal";
-
+import { authSessionManager } from "../services/AuthSessionManager";
 import { conversationService, type ChatListItem } from "../services/ConversationService";
 import { roomService } from "../services/RoomService";
-import { authSessionManager } from "../services/AuthSessionManager";
-
 import type { RootState } from "../store/Store";
 import type { ChatFilter, Conversation } from "../types/chat";
+import ChatDetail from "./ChatDetail";
 import "./ChatsPage.css";
 
-type SelectedChat = { id: string; name: string; type: "direct" | "group" };
+const chatActions = {
+    direct: { title: "Nhắn tin 1-1", label: "Tên người dùng", submit: "Mở chat", icon: MessageCircle },
+    join: { title: "Tham gia phòng", label: "Tên phòng", submit: "Tham gia", icon: LogIn },
+    create: { title: "Tạo nhóm", label: "Tên nhóm", submit: "Tạo nhóm", icon: UsersRound },
+};
+
+type ChatAction = keyof typeof chatActions;
+type SelectedChat = Pick<Conversation, "id" | "name"> & { type: "direct" | "group" };
 
 function normalizeText(text: string) {
     return text.toLocaleLowerCase("vi").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
 }
 
 function toConversation(item: ChatListItem): Conversation {
-    const isGroup = item.type === 1;
-
+    const group = item.type === 1;
     return {
         id: `${item.type}:${item.name}`,
         name: item.name,
         initials: item.name.slice(0, 2).toUpperCase(),
-        tone: isGroup ? "violet" : "blue",
-        type: isGroup ? "group" : "direct",
-        preview: "Nhấn để xem tin nhắn",
+        tone: group ? "violet" : "blue",
+        type: group ? "group" : "direct",
+        preview: group ? "Nhóm chat" : "Trò chuyện cá nhân",
         time: item.actionTime.slice(5, 16),
         messageKind: "text",
         unreadCount: 0,
         pinned: false,
-        online: false
+        online: false,
     };
+}
+
+function errorText(error: unknown, fallback: string) {
+    return error instanceof Error ? error.message : fallback;
 }
 
 export default function ChatsPage() {
     const navigate = useNavigate();
     const { username, isAuthenticated, connectionStatus } = useSelector((state: RootState) => state.auth);
-
-    const [serverChats, setServerChats] = useState<ChatListItem[]>([]);
-    const [confirmedRoomChanges, setConfirmedRoomChanges] = useState(new Map<string, boolean>());
-    const [loading, setLoading] = useState(false);
-    const [hasLoaded, setHasLoaded] = useState(false);
-    const [lastSynced, setLastSynced] = useState("");
-    const [error, setError] = useState("");
+    const connected = isAuthenticated && connectionStatus === "connected";
     const [reload, setReload] = useState(0);
-
-    const [searchQuery, setSearchQuery] = useState("");
+    const [list, setList] = useState({ version: -1, items: [] as ChatListItem[], error: "" });
+    const [roomChanges, setRoomChanges] = useState(new Map<string, boolean>());
+    const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<ChatFilter>("all");
-    const [selectedChat, setSelectedChat] = useState<SelectedChat | null>(null);
-    const [directUsername, setDirectUsername] = useState("");
-    const [directChatError, setDirectChatError] = useState("");
-    const [isCheckingUser, setIsCheckingUser] = useState(false);
-
+    const [selected, setSelected] = useState<SelectedChat | null>(null);
     const [notice, setNotice] = useState("");
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-    const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
-    const [isCreatingRoom, setIsCreatingRoom] = useState(false);
-    const [createGroupError, setCreateGroupError] = useState("");
-
-    const [joinRoomName, setJoinRoomName] = useState("");
-    const [joinRoomError, setJoinRoomError] = useState("");
-    const [isJoiningRoom, setIsJoiningRoom] = useState(false);
-    const [isLeavingRoom, setIsLeavingRoom] = useState(false);
+    const [leaving, setLeaving] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const [action, setAction] = useState<ChatAction>("direct");
+    const [name, setName] = useState("");
+    const [formError, setFormError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const dialog = useRef<HTMLDialogElement>(null);
+    const actionInput = useRef<HTMLInputElement>(null);
+    const accountMenu = useRef<HTMLDetailsElement>(null);
+    const composeMenu = useRef<HTMLDetailsElement>(null);
+    const composeButton = useRef<HTMLElement>(null);
 
     useEffect(() => {
+        if (!connected) return;
         let active = true;
-
-        if (!isAuthenticated || connectionStatus !== "connected") {
-            setServerChats([]);
-            setConfirmedRoomChanges(new Map());
-            setSelectedChat(null);
-            setHasLoaded(false);
-            setLastSynced("");
-            setError("");
-            setLoading(false);
-            return () => { active = false; };
-        }
-
-        setLoading(true);
-        setError("");
-
-        const request = reload === 0
-            ? conversationService.getUserList()
-            : conversationService.refreshUserList();
-
+        const request = reload ? conversationService.refreshUserList() : conversationService.getUserList();
         request.then(items => {
-            if (!active) return;
-
-            setServerChats(items);
-            setHasLoaded(true);
-            setLastSynced(new Date().toLocaleTimeString("vi-VN", {
-                hour: "2-digit",
-                minute: "2-digit"
+            if (active) setList({ version: reload, items, error: "" });
+        }).catch(error => {
+            if (active) setList(current => ({
+                ...current,
+                version: reload,
+                error: errorText(error, "Không thể đồng bộ danh sách chat"),
             }));
-
-            setLoading(false);
-        }).catch(err => {
-            if (!active) return;
-
-            setError(err instanceof Error ? err.message : "Không thể tải danh sách chat");
-            setLoading(false);
         });
         return () => { active = false; };
-    }, [isAuthenticated, connectionStatus, username, reload]);
+    }, [connected, reload, username]);
 
-    const conversations = useMemo(() => {
-        const chats = serverChats.filter(item => item.type === 0 || confirmedRoomChanges.get(item.name) !== false);
-        const roomsOnServer = new Set(chats.filter(item => item.type === 1).map(item => item.name));
-        const missingRooms: ChatListItem[] = [];
-
-        // Phòng đã được xác nhận có thể chưa xuất hiện trong danh sách chat gần đây.
-        for (const [name, joined] of confirmedRoomChanges) {
-            if (joined && !roomsOnServer.has(name)) missingRooms.push({ name, type: 1, actionTime: "" });
+    useEffect(() => {
+        function closeOutside(event: PointerEvent) {
+            for (const menu of [accountMenu.current, composeMenu.current]) {
+                if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) menu.open = false;
+            }
         }
+        document.addEventListener("pointerdown", closeOutside);
+        return () => document.removeEventListener("pointerdown", closeOutside);
+    }, []);
 
-        return [...missingRooms, ...chats].map(toConversation);
-    }, [serverChats, confirmedRoomChanges]);
+    const loading = connected && list.version !== reload;
+    const listError = loading ? "" : list.error;
+    const chats = new Map(list.items.map(item => [`${item.type}:${item.name}`, item]));
+    for (const [roomName, joined] of roomChanges) {
+        const id = `1:${roomName}`;
+        if (!joined) chats.delete(id);
+        else if (!chats.has(id)) chats.set(id, { name: roomName, type: 1, actionTime: "" });
+    }
+    const all = Array.from(chats.values(), toConversation);
+    const directCount = all.filter(chat => chat.type === "direct").length;
+    const keyword = normalizeText(search.trim());
+    const visible = all.filter(chat =>
+        (filter === "all" || chat.type === filter) && normalizeText(chat.name).includes(keyword)
+    );
+    const fields = chatActions[action];
 
-    const directCount = conversations.filter(chat => chat.type === "direct").length;
-    const groupCount = conversations.filter(chat => chat.type === "group").length;
-
-    const visibleConversations = useMemo(() => {
-        const keyword = normalizeText(searchQuery.trim());
-
-        return conversations.filter(chat => {
-            const matchesSearch = normalizeText(chat.name).includes(keyword);
-            const matchesFilter = filter === "all" || chat.type === filter;
-            return matchesSearch && matchesFilter;
-        });
-    }, [conversations, searchQuery, filter]);
+    function openAction(next: ChatAction) {
+        setAction(next);
+        setName("");
+        setFormError("");
+        if (composeMenu.current) composeMenu.current.open = false;
+        dialog.current?.showModal();
+        actionInput.current?.focus();
+    }
 
     function openConversation(id: string) {
-        const chat = conversations.find(item => item.id === id);
-
-        if (chat) {
-            setSelectedChat({
-                id: chat.id,
-                name: chat.name,
-                type: chat.type === "group" ? "group" : "direct"
-            });
-        }
+        const chat = chats.get(id);
+        if (chat) setSelected({ id, name: chat.name, type: chat.type === 1 ? "group" : "direct" });
     }
 
-    async function handleStartDirectChat(event: FormEvent<HTMLFormElement>) {
+    async function submitAction(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (isCheckingUser) return;
-
-        const name = directUsername.trim();
-        if (!name) return;
-        if (name === username) {
-            setDirectChatError("Hãy nhập tên người dùng khác.");
+        const value = name.trim();
+        if (!value || submitting || !connected) return;
+        if (action === "direct" && value === username) {
+            setFormError("Hãy nhập tên người dùng khác.");
             return;
         }
-
-        setDirectChatError("");
-        setIsCheckingUser(true);
+        setFormError("");
+        setSubmitting(true);
         try {
-            if (!(await conversationService.checkUserExists(name))) {
-                setDirectChatError(`Không tìm thấy tài khoản "${name}".`);
-                return;
+            if (action === "direct") {
+                if (!(await conversationService.checkUserExists(value))) {
+                    setFormError(`Không tìm thấy tài khoản "${value}".`);
+                    return;
+                }
+                setSelected({ id: `0:${value}`, name: value, type: "direct" });
+            } else {
+                let roomName = value;
+                if (action === "create") roomName = (await roomService.createRoom(value)).name;
+                else await roomService.joinRoom(value);
+
+                setRoomChanges(current => new Map(current).set(roomName, true));
+                setFilter("group");
+                setSearch("");
+                setSelected({ id: `1:${roomName}`, name: roomName, type: "group" });
+                setReload(current => current + 1);
+                setNotice(action === "create" ? `Đã tạo nhóm "${roomName}".` : `Đã tham gia phòng "${roomName}".`);
             }
-
-            setSelectedChat({ id: `0:${name}`, name, type: "direct" });
-            setDirectUsername("");
+            dialog.current?.close();
         } catch (error) {
-            setDirectChatError(error instanceof Error ? error.message : "Không thể kiểm tra tài khoản");
+            setFormError(errorText(error, "Không thể hoàn tất thao tác."));
         } finally {
-            setIsCheckingUser(false);
+            setSubmitting(false);
         }
     }
 
-    function updateRoomList(name: string, joined: boolean) {
-        setConfirmedRoomChanges(current => new Map(current).set(name, joined));
-        setReload(value => value + 1);
-
-        if (joined) {
-            setSearchQuery("");
-            setFilter("group");
-            setSelectedChat({ id: `1:${name}`, name, type: "group" });
-        } else {
-            setSelectedChat(current => current?.id === `1:${name}` ? null : current);
-        }
-    }
-
-    async function copyRoomName(name: string) {
-        try {
-            await navigator.clipboard.writeText(name);
-            setNotice(`Đã sao chép tên phòng "${name}".`);
-        } catch {
-            setNotice(`Hãy sao chép tên phòng thủ công: ${name}`);
-        }
-    }
-
-    function openCreateGroup() {
-        if (loading) {
-            setNotice("Đang tải danh sách chat, hãy thử lại sau.");
-            return;
-        }
-
-        if (!isAuthenticated || connectionStatus !== "connected") {
-            setNotice("Chưa kết nối hoặc chưa đăng nhập.");
-            return;
-        }
-
-        setCreateGroupError("");
-        setIsCreateGroupOpen(true);
-    }
-
-    function closeCreateGroup() {
-        if (isCreatingRoom) return;
-
-        setCreateGroupError("");
-        setIsCreateGroupOpen(false);
-    }
-
-    async function handleCreateRoom(groupName: string) {
-        if (isCreatingRoom) return;
-
-        if (!isAuthenticated || connectionStatus !== "connected") {
-            setCreateGroupError("Bạn cần đăng nhập và kết nối với server trước khi tạo nhóm.");
-            return;
-        }
-
-        setIsCreatingRoom(true);
-        setCreateGroupError("");
-
-        try {
-            const room = await roomService.createRoom(groupName);
-
-            setIsCreateGroupOpen(false);
-            setNotice(`Đã tạo nhóm "${room.name}" thành công.`);
-            updateRoomList(room.name, true);
-        } catch (err) {
-            setCreateGroupError(err instanceof Error ? err.message : "Không thể tạo nhóm");
-        } finally {
-            setIsCreatingRoom(false);
-        }
-    }
-
-    async function handleJoinRoom(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (isJoiningRoom) return;
-
-        const roomName = joinRoomName.trim();
-
-        if (!roomName) {
-            setJoinRoomError("Vui lòng nhập tên phòng");
-            return;
-        }
-
-        if (!isAuthenticated || connectionStatus !== "connected") {
-            setJoinRoomError("Bạn cần đăng nhập và kết nối với server");
-            return;
-        }
-
-        setIsJoiningRoom(true);
-        setJoinRoomError("");
-
-        try {
-            await roomService.joinRoom(roomName);
-
-            setJoinRoomName("");
-            setNotice(`Đã tham gia phòng "${roomName}" thành công.`);
-            updateRoomList(roomName, true);
-        } catch (error) {
-            setJoinRoomError(error instanceof Error ? error.message : "Không thể tham gia phòng");
-        } finally {
-            setIsJoiningRoom(false);
-        }
-    }
-
-    async function handleLeaveRoom() {
-        const room = selectedChat;
-
-        if (!room || room.type !== "group" || isLeavingRoom) return;
-        if (!window.confirm(`Bạn có chắc muốn rời phòng "${room.name}"?`)) return;
-
-        if (!isAuthenticated || connectionStatus !== "connected") {
-            setNotice("Bạn cần đăng nhập và kết nối với server");
-            return;
-        }
-
-        setIsLeavingRoom(true);
-
+    async function leaveRoom() {
+        const room = selected;
+        if (room?.type !== "group" || leaving || !connected) return;
+        if (!window.confirm(`Rời phòng "${room.name}"?`)) return;
+        setLeaving(true);
         try {
             await roomService.outRoom(room.name);
-
-            setNotice(`Đã rời phòng "${room.name}" thành công.`);
-            updateRoomList(room.name, false);
+            setRoomChanges(current => new Map(current).set(room.name, false));
+            setSelected(current => current?.id === room.id ? null : current);
+            setReload(current => current + 1);
+            setNotice(`Đã rời phòng "${room.name}".`);
         } catch (error) {
-            setNotice(error instanceof Error ? error.message : "Không thể rời phòng");
+            setNotice(errorText(error, "Không thể rời phòng."));
         } finally {
-            setIsLeavingRoom(false);
+            setLeaving(false);
         }
     }
 
-    async function handleLogout() {
-        if (isLoggingOut) return;
-
-        setIsLoggingOut(true);
-
+    async function copyRoomName(roomName: string) {
         try {
-            const success = await authSessionManager.logout();
+            await navigator.clipboard.writeText(roomName);
+            setNotice("Đã sao chép tên phòng.");
+        } catch {
+            setNotice(`Sao chép tên phòng thủ công: ${roomName}`);
+        }
+    }
 
-            if (!success) {
-                window.alert("Đã đăng xuất trên thiết bị, nhưng server chưa xác nhận LOGOUT.");
-            }
-
+    async function logout() {
+        if (loggingOut) return;
+        setLoggingOut(true);
+        try {
+            const confirmed = await authSessionManager.logout();
+            if (!confirmed) window.alert("Đã đăng xuất trên thiết bị, nhưng server chưa xác nhận LOGOUT.");
             navigate("/", { replace: true });
-        } catch (err) {
-            setNotice(err instanceof Error ? err.message : "Không thể đăng xuất");
+        } catch (error) {
+            setNotice(errorText(error, "Không thể đăng xuất."));
         } finally {
-            setIsLoggingOut(false);
+            setLoggingOut(false);
         }
     }
 
     return (
-        <div className="chats-page">
-            <main className="chats-page__content">
-                <div className="chats-layout">
-                    <section className="chats-sidebar">
-                        <div className="chats-page__status">
-                            <span>
-                                {isAuthenticated && connectionStatus === "connected"
-                                    ? "Đã kết nối"
-                                    : "Mất kết nối"}
-                            </span>
-
-                            <button type="button" disabled={isLoggingOut} onClick={handleLogout}>
-                                {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
-                            </button>
-                        </div>
-
-                        <ChatListHeading
-                            username={username || "Người dùng"}
-                            onCreateGroup={openCreateGroup}
-                        />
-
-                        <form className="chats-page__join" onSubmit={handleJoinRoom}>
-                            <label htmlFor="join-room-name">Tham gia phòng có sẵn</label>
-
-                            <div className="chats-page__join-fields">
-                                <input
-                                    id="join-room-name"
-                                    value={joinRoomName}
-                                    onChange={event => setJoinRoomName(event.target.value)}
-                                    placeholder="Nhập tên phòng"
-                                    maxLength={40}
-                                    disabled={isJoiningRoom}
-                                />
-
-                                <button type="submit" disabled={isJoiningRoom || !joinRoomName.trim()}>
-                                    {isJoiningRoom ? "Đang tham gia..." : "Tham gia"}
+        <div className={`chats-page${selected ? " chats-page--detail" : ""}`}>
+            <main className="chats-layout">
+                <aside className="chats-sidebar" aria-label="Hộp thư">
+                    <div className="inbox-toolbar" onKeyDown={event => {
+                        if (event.key !== "Escape") return;
+                        const menu = [accountMenu.current, composeMenu.current].find(item => item?.open);
+                        if (menu) {
+                            menu.open = false;
+                            menu.querySelector("summary")?.focus();
+                        }
+                    }}>
+                        <details name="inbox-menu" ref={accountMenu} className="inbox-menu">
+                            <summary className="inbox-account" aria-label={`Menu tài khoản ${username || "Người dùng"}`}>
+                                <span>{username || "Người dùng"}</span>
+                                <ChevronDown size={16} aria-hidden="true" />
+                            </summary>
+                            <div className="inbox-menu__panel">
+                                <span className="inbox-connection">{connected ? "Đã kết nối" : "Mất kết nối"}</span>
+                                <button type="button" onClick={logout} disabled={loggingOut}>
+                                    <LogOut size={17} aria-hidden="true" />
+                                    {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
                                 </button>
                             </div>
-
-                            {joinRoomError && (
-                                <p role="alert" className="chats-page__join-error">
-                                    {joinRoomError}
-                                </p>
-                            )}
-                        </form>
-
-                        <form className="chats-page__join" onSubmit={handleStartDirectChat}>
-                            <label htmlFor="direct-username">Bắt đầu chat 1-1</label>
-                            <div className="chats-page__join-fields">
-                                <input
-                                    id="direct-username"
-                                    value={directUsername}
-                                    onChange={event => {
-                                        setDirectUsername(event.target.value);
-                                        setDirectChatError("");
-                                    }}
-                                    placeholder="Nhập tên người dùng"
-                                    autoComplete="off"
-                                    disabled={isCheckingUser}
-                                />
-                                <button type="submit" disabled={isCheckingUser || !directUsername.trim()}>
-                                    {isCheckingUser ? "Đang kiểm tra..." : "Mở chat"}
-                                </button>
+                        </details>
+                        <details name="inbox-menu" ref={composeMenu} className="inbox-menu">
+                            <summary ref={composeButton} className="inbox-icon" aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới">
+                                <SquarePen size={23} aria-hidden="true" />
+                            </summary>
+                            <div className="inbox-menu__panel inbox-menu__panel--right">
+                                {(Object.keys(chatActions) as ChatAction[]).map(key => {
+                                    const { title, icon: Icon } = chatActions[key];
+                                    return <button key={key} type="button" disabled={!connected} onClick={() => openAction(key)}>
+                                        <Icon size={18} aria-hidden="true" />{title}
+                                    </button>;
+                                })}
                             </div>
-                            {directChatError && (
-                                <p className="chats-page__join-error" role="alert">{directChatError}</p>
-                            )}
-                        </form>
+                        </details>
+                    </div>
 
-                        <ChatSearchBar value={searchQuery} onChange={setSearchQuery} />
+                    <ChatSearchBar value={search} onChange={setSearch} />
+                    <div className="inbox-list-heading">
+                        <h1>Tin nhắn</h1>
+                        <button type="button" className="inbox-icon" aria-label="Tải lại" title="Tải lại"
+                                disabled={!connected || loading} onClick={() => setReload(current => current + 1)}>
+                            <RefreshCw size={17} aria-hidden="true" />
+                        </button>
+                    </div>
+                    <ConversationFilters activeFilter={filter} totalCount={all.length} directCount={directCount}
+                                         groupCount={all.length - directCount} onChange={setFilter} />
 
-                        <ConversationFilters
-                            activeFilter={filter}
-                            totalCount={conversations.length}
-                            directCount={directCount}
-                            groupCount={groupCount}
-                            onChange={setFilter}
-                        />
+                    {listError && <p className="inbox-state" role="alert">{listError}</p>}
+                    {all.length > 0 ? (
+                        <ConversationList conversations={visible} onSelect={openConversation} />
+                    ) : !listError && (
+                        <p className="inbox-state" role="status">
+                            {loading ? "Đang tải hộp thư..." : "Chưa có cuộc trò chuyện nào."}
+                        </p>
+                    )}
+                </aside>
 
-                        <div className="chats-page__refresh-row">
-                            <span>{lastSynced ? `Đã đồng bộ lúc ${lastSynced}` : "Danh sách từ server"}</span>
-
-                            <button
-                                type="button"
-                                disabled={loading || !isAuthenticated || connectionStatus !== "connected"}
-                                onClick={() => setReload(value => value + 1)}
-                            >
-                                {loading && hasLoaded ? "Đang đồng bộ..." : "Tải lại"}
-                            </button>
-                        </div>
-
-                        {error && (
-                            <div className="chats-page__state" role="alert">
-                                <p>Không thể đồng bộ danh sách: {error}</p>
-                                <button type="button" onClick={() => setReload(value => value + 1)}>
-                                    Thử lại
-                                </button>
-                            </div>
-                        )}
-
-                        {conversations.length > 0 ? (
-                            <ConversationList
-                                conversations={visibleConversations}
-                                onSelect={openConversation}
-                            />
-                        ) : loading && !hasLoaded ? (
-                            <p className="chats-page__state" role="status">
-                                Đang tải danh sách chat...
-                            </p>
-                        ) : !hasLoaded && error ? null : (
-                            <p className="chats-page__state">
-                                Chưa có cuộc trò chuyện hoặc phòng chat nào.
-                            </p>
-                        )}
-                    </section>
-
-                    <section className="chats-main">
-                        {selectedChat ? (
-                            <div className="chats-page__chat-panel">
-                                {selectedChat.type === "group" && (
-                                    <div className="chats-page__room-actions">
-                                        <span>Phòng: {selectedChat.name}</span>
-
-                                        <div className="chats-page__room-buttons">
-                                            <button type="button" onClick={() => void copyRoomName(selectedChat.name)}>
-                                                Sao chép tên phòng
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="chats-page__leave-room"
-                                                disabled={isLeavingRoom}
-                                                onClick={() => void handleLeaveRoom()}
-                                            >
-                                                {isLeavingRoom ? "Đang rời phòng..." : "Rời phòng"}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="chats-page__chat-body">
-                                    <ChatDetail
-                                        key={selectedChat.id}
-                                        conversationId={selectedChat.id}
-                                        name={selectedChat.name}
-                                        type={selectedChat.type}
-                                        onBack={() => setSelectedChat(null)}
-                                    />
+                <section className="chats-main" aria-label="Nội dung chat">
+                    {selected ? (
+                        <>
+                            {selected.type === "group" && (
+                                <div className="inbox-room-actions">
+                                    <button type="button" onClick={() => void copyRoomName(selected.name)}>
+                                        <Copy size={15} aria-hidden="true" /> Sao chép tên phòng
+                                    </button>
+                                    <button type="button" disabled={leaving || !connected} onClick={leaveRoom}>
+                                        {leaving ? "Đang rời phòng..." : "Rời phòng"}
+                                    </button>
                                 </div>
+                            )}
+                            <div className="inbox-chat-body">
+                                <ChatDetail key={selected.id} conversationId={selected.id} name={selected.name}
+                                            type={selected.type} onBack={() => setSelected(null)} />
                             </div>
-                        ) : (
-                            <div className="chats-empty">
-                                <div className="chats-empty__content">
-                                    <h2>Chào mừng đến với EchoChat</h2>
-                                    <p>Chọn một cuộc trò chuyện để bắt đầu nhắn tin.</p>
-                                </div>
-                            </div>
-                        )}
-                    </section>
-                </div>
+                        </>
+                    ) : <p className="inbox-placeholder">Chọn một cuộc trò chuyện để xem tin nhắn.</p>}
+                </section>
             </main>
 
-            <BottomNavigation
-                onUnavailable={page => setNotice(`Trang ${page} đang được phát triển.`)}
-            />
-
+            <BottomNavigation onUnavailable={page => setNotice(`Trang ${page} đang được phát triển.`)} />
             {notice && (
-                <div className="chats-page__notice" role="status">
+                <div className="inbox-toast" role="status">
                     <span>{notice}</span>
-                    <button type="button" onClick={() => setNotice("")} aria-label="Đóng thông báo">
-                        ×
+                    <button type="button" className="inbox-icon" aria-label="Đóng thông báo" onClick={() => setNotice("")}>
+                        <X size={18} aria-hidden="true" />
                     </button>
                 </div>
             )}
 
-            {isCreateGroupOpen && (
-                <CreateGroupModal
-                    isSubmitting={isCreatingRoom}
-                    error={createGroupError}
-                    onClose={closeCreateGroup}
-                    onCreate={groupName => {
-                        void handleCreateRoom(groupName);
-                    }}
-                />
-            )}
+            <dialog ref={dialog} className="inbox-dialog" aria-labelledby="inbox-dialog-title"
+                    onCancel={event => { if (submitting) event.preventDefault(); }}
+                    onClose={() => composeButton.current?.focus()}>
+                <form onSubmit={submitAction}>
+                    <div className="inbox-dialog__heading">
+                        <h2 id="inbox-dialog-title">{fields.title}</h2>
+                        <button type="button" className="inbox-icon" aria-label="Đóng" disabled={submitting}
+                                onClick={() => dialog.current?.close()}><X size={21} aria-hidden="true" /></button>
+                    </div>
+                    <label htmlFor="inbox-action-name">{fields.label}</label>
+                    <input ref={actionInput} id="inbox-action-name" value={name} autoComplete="off" required
+                           maxLength={action === "direct" ? undefined : 40} disabled={submitting} onChange={event => {
+                        setName(event.target.value);
+                        setFormError("");
+                    }} />
+                    {action === "create" && (
+                        <p className="inbox-hint">Chia sẻ tên phòng để bạn bè có thể tự tham gia.</p>
+                    )}
+                    {formError && <p className="inbox-form-error" role="alert">{formError}</p>}
+                    <button type="submit" className="inbox-submit" disabled={submitting || !name.trim() || !connected}>
+                        {submitting ? "Đang xử lý..." : fields.submit}
+                    </button>
+                </form>
+            </dialog>
         </div>
     );
 }

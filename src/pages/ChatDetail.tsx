@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { useDispatch } from "react-redux";
-import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 
 import MessageList from "../components/chat_detail/MessageList";
@@ -17,7 +15,6 @@ import {
     clearMessages,
     addMessage,
 } from "../store/slice/messageSlice";
-import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
 
 import "./ChatDetail.css";
@@ -30,12 +27,14 @@ type ChatDetailProps = {
 };
 
 export default function ChatDetail({
-    conversationId,
-    name,
-    type,
-    onBack,
-}: ChatDetailProps) {
+                                       conversationId,
+                                       name,
+                                       type,
+                                       onBack,
+                                   }: ChatDetailProps) {
     const dispatch = useDispatch<AppDispatch>();
+    const { username, connectionStatus } = useSelector((state: RootState) => state.auth);
+    const loading = useSelector((state: RootState) => state.messages.loading);
     const [online, setOnline] = useState<boolean>();
 
     useEffect(() => {
@@ -45,29 +44,25 @@ export default function ChatDetail({
         conversationService.checkUserOnline(name).then(result => {
             if (active) setOnline(result);
         }).catch(() => {
-            // Chỉ hiện trạng thái khi server trả về kết quả kiểm tra.
         });
 
         return () => { active = false; };
     }, [name, type]);
-
-    const username = useSelector(
-        (state: RootState) => state.auth.username
-    );
 
     const handleSendMessage = async (content: string) => {
         if (!username) {
             throw new Error("Không tìm thấy tài khoản đăng nhập");
         }
 
-        const message = await messageService.sendPeopleMessage(
-            name,
-            content,
-            username
-        );
+        if (connectionStatus !== "connected" || loading) {
+            throw new Error("Hãy đợi cuộc trò chuyện kết nối và tải xong.");
+        }
+
+        const message = messageService.sendMessage(type === "group" ? "room" : "people", name, content, username);
 
         dispatch(addMessage(message));
     };
+
     useEffect(() => {
         let isActive = true;
 
@@ -105,6 +100,7 @@ export default function ChatDetail({
             isActive = false;
         };
     }, [name, type, conversationId, dispatch]);
+
     return (
         <div
             className="chat-detail-container"

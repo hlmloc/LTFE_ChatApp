@@ -1,4 +1,3 @@
-
 import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
@@ -147,36 +146,18 @@ class MessageService {
             );
         }
     }
-    sendPeopleMessage(to: string, mes: string, myUsername: string): Promise<Message> {
-        return new Promise(async (resolve, reject) => {
-            try {
-                await webSocketService.waitUntilConnected();
 
-                webSocketService.send("SEND_CHAT", {
-                    type: "people",
-                    to,
-                    mes,
-                });
+    sendMessage(type: "people" | "room", to: string, mes: string, username: string): Message {
+        webSocketService.send("SEND_CHAT", { type, to, mes });
 
-                const message: Message = {
-                    id: Date.now(),
-                    name: myUsername,
-                    to: to,
-                    mes: mes,
-                    createAt: new Date().toISOString(),
-                    type: 0,
-                };
-
-                resolve(message);
-
-            } catch (error) {
-                reject(
-                    error instanceof Error
-                        ? error
-                        : new Error("Không thể gửi tin nhắn")
-                );
-            }
-        });
+        return {
+            id: Date.now(),
+            name: username,
+            to,
+            mes,
+            createAt: new Date().toISOString(),
+            type: type === "room" ? 1 : 0,
+        };
     }
 }
 
