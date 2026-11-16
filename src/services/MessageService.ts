@@ -1,12 +1,10 @@
+
 import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
 
-type HistoryEvent = "GET_PEOPLE_CHAT_MES" | "GET_ROOM_CHAT_MES";
-
 interface PendingRequest {
     key: string;
-    event: HistoryEvent;
     name: string;
     page: number;
     resolve: (messages: Message[]) => void;
@@ -23,15 +21,7 @@ class MessageService {
         name: string,
         page: number = 1
     ): Promise<Message[]> {
-        return this.getChatMessages("GET_PEOPLE_CHAT_MES", name, page);
-    }
-
-    getRoomChatMessages(name: string, page: number = 1): Promise<Message[]> {
-        return this.getChatMessages("GET_ROOM_CHAT_MES", name, page);
-    }
-
-    private getChatMessages(event: HistoryEvent, name: string, page: number): Promise<Message[]> {
-        const key = JSON.stringify([event, name, page]);
+        const key = `${name}-${page}`;
 
         const existingRequest = this.pendingRequests.get(key);
 
@@ -42,7 +32,6 @@ class MessageService {
         const request = new Promise<Message[]>((resolve, reject) => {
             this.requestQueue.push({
                 key,
-                event,
                 name,
                 page,
                 resolve,
@@ -57,7 +46,149 @@ class MessageService {
         return request;
     }
 
-    private processQueue(): void {
+    getRoomChatMessages(
+        name: string,
+        page: number = 1
+    ): Promise<Message[]> {
+        return new Promise((resolve, reject) => {
+            let finished = false;
+            let unsubscribe = () => {
+            };
+
+            const timeout = setTimeout(() => {
+                finish(undefined, new Error("Hết thời gian chờ server"));
+            }, 15000);
+
+            const finish = (
+                messages?: Message[],
+                error?: Error
+            ) => {
+                if (finished) return;
+                finished = true;
+
+                unsubscribe();
+                clearTimeout(timeout);
+
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(messages ?? []);
+                }
+            };
+
+            unsubscribe = webSocketService.subscribe(
+                "GET_ROOM_CHAT_MES",
+                (response: ChatResponse) => {
+                    if (response.status !== "success") {
+                        finish(
+                            undefined,
+                            new Error(response.mes || "Không thể lấy tin nhắn nhóm")
+                        );
+                        return;
+                    }
+                    const data = response.data;
+
+                    if (
+                        !data ||
+                        typeof data !== "object" ||
+                        !("name" in data) ||
+                        typeof data.name !== "string"
+                    ) {
+                        finish(
+                            undefined,
+                            new Error("Dữ liệu phòng từ server không hợp lệ")
+                        );
+                        return;
+                    }
+
+                    if (data.name !== name) {
+                        return;
+                    }
+
+                    if (
+                        !("chatMess" in data) ||
+                        !Array.isArray(data.chatMess)
+                    ) {
+                        finish(
+                            undefined,
+                            new Error("Dữ liệu tin nhắn nhóm không hợp lệ")
+                        );
+                        return;
+                    }
+
+                    finish(data.chatMess as Message[]);
+                }
+            );
+
+            webSocketService.waitUntilConnected()
+                .then(() => {
+                    webSocketService.send("GET_ROOM_CHAT_MES", {
+                        name,
+                        page,
+                    });
+                })
+                .catch((error) => {
+                    finish(
+                        undefined,
+                        error instanceof Error
+                            ? error
+                            : new Error("Không thể lấy lịch sử chat nhóm")
+                    );
+                });
+        });
+    }
+
+    private async sendMessage(
+        to: string,
+        mes: string,
+        myUsername: string,
+        chatType: "people" | "room"
+    ): Promise<Message> {
+        const content = mes.trim();
+
+        if (!content) {
+            throw new Error("Tin nhắn không được để trống");
+        }
+
+        if (!to.trim()) {
+            throw new Error("Không tìm thấy người nhận hoặc nhóm");
+        }
+
+        await webSocketService.waitUntilConnected();
+
+        webSocketService.send("SEND_CHAT", {
+            type: chatType,
+            to,
+            mes: content,
+        });
+
+        return {
+            id: Date.now(),
+            name: myUsername,
+            to,
+            mes: content,
+            createAt: new Date().toISOString(),
+            type: chatType === "people" ? 0 : 1,
+        };
+    }
+
+    sendPeopleMessage(
+        to: string,
+        mes: string,
+        myUsername: string
+    ): Promise<Message> {
+        return this.sendMessage(to, mes, myUsername, "people");
+    }
+
+    sendRoomMessage(
+        to: string,
+        mes: string,
+        myUsername: string
+    ): Promise<Message> {
+        return this.sendMessage(to, mes, myUsername, "room");
+    }
+
+    private async processQueue(): Promise<void> {
         if (this.isProcessing || this.requestQueue.length === 0) {
             return;
         }
@@ -66,7 +197,8 @@ class MessageService {
 
         const request = this.requestQueue.shift()!;
 
-        const unsubscribers: Array<() => void> = [];
+        let unsubscribe = () => {
+        };
         let timeout: ReturnType<typeof setTimeout>;
         let finished = false;
 
@@ -77,7 +209,7 @@ class MessageService {
             if (finished) return;
             finished = true;
 
-            unsubscribers.forEach(unsubscribe => unsubscribe());
+            unsubscribe();
             clearTimeout(timeout);
 
             this.pendingRequests.delete(request.key);
@@ -89,51 +221,38 @@ class MessageService {
                 request.resolve(messages ?? []);
             }
 
-            queueMicrotask(() => this.processQueue());
+            void this.processQueue();
         };
 
-        unsubscribers.push(webSocketService.subscribe(
-            request.event,
+        unsubscribe = webSocketService.subscribe(
+            "GET_PEOPLE_CHAT_MES",
             (response: ChatResponse) => {
-                if (response.status !== "success") {
+                if (response.status === "success") {
+                    if (Array.isArray(response.data)) {
+                        finish(response.data as Message[]);
+                    } else {
+                        finish(
+                            undefined,
+                            new Error("Dữ liệu tin nhắn không hợp lệ")
+                        );
+                    }
+                } else {
                     finish(
                         undefined,
                         new Error(response.mes || "Không thể lấy tin nhắn")
                     );
-                    return;
                 }
-
-                let data = response.data;
-                if (request.event === "GET_ROOM_CHAT_MES") {
-                    if (!data || typeof data !== "object" || !("name" in data) || !("chatMess" in data)) {
-                        finish(undefined, new Error("Dữ liệu phòng không hợp lệ"));
-                        return;
-                    }
-                    if (data.name !== request.name) return;
-                    data = data.chatMess;
-                }
-
-                if (Array.isArray(data)) finish(data as Message[]);
-                else finish(undefined, new Error("Dữ liệu tin nhắn không hợp lệ"));
             }
-        ));
-
-        unsubscribers.push(webSocketService.subscribe("AUTH", response => {
-            if (response.status === "error") {
-                finish(undefined, new Error(response.mes || "Phiên đăng nhập không hợp lệ"));
-            }
-        }));
-
-        unsubscribers.push(webSocketService.subscribeConnection(status => {
-            if (status === "closed") finish(undefined, new Error("Mất kết nối WebSocket"));
-        }));
+        );
 
         timeout = setTimeout(() => {
             finish(undefined, new Error("Hết thời gian chờ server"));
         }, 15000);
 
         try {
-            webSocketService.send(request.event, {
+            await webSocketService.waitUntilConnected();
+
+            webSocketService.send("GET_PEOPLE_CHAT_MES", {
                 name: request.name,
                 page: request.page,
             });
@@ -145,19 +264,6 @@ class MessageService {
                     : new Error("Không thể lấy lịch sử tin nhắn")
             );
         }
-    }
-
-    sendMessage(type: "people" | "room", to: string, mes: string, username: string): Message {
-        webSocketService.send("SEND_CHAT", { type, to, mes });
-
-        return {
-            id: Date.now(),
-            name: username,
-            to,
-            mes,
-            createAt: new Date().toISOString(),
-            type: type === "room" ? 1 : 0,
-        };
     }
 }
 
