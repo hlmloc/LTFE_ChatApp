@@ -1,6 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { STICKERS, type StickerId } from "../../data/stickers";
+import {
+    STICKERS,
+    STICKER_PACKS,
+    type StickerId,
+    type StickerPackId
+} from "../../data/stickers";
 import "./StickerPicker.css";
 
 type StickerPickerProps = {
@@ -14,6 +19,8 @@ export default function StickerPicker({
     onClose,
     disabled = false
 }: StickerPickerProps) {
+    const [activePack, setActivePack] = useState<StickerPackId>("cat");
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") onClose();
@@ -22,6 +29,10 @@ export default function StickerPicker({
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [onClose]);
+
+    const visibleStickers = STICKERS.filter(
+        (sticker) => sticker.pack === activePack
+    );
 
     return (
         <div className="sticker-picker" role="dialog" aria-label="Chọn sticker">
@@ -36,8 +47,24 @@ export default function StickerPicker({
                     <X size={18} />
                 </button>
             </div>
-            <div className="sticker-picker__grid">
-                {STICKERS.map((sticker) => (
+
+            <div className="sticker-picker__packs" role="tablist" aria-label="Bộ sticker">
+                {STICKER_PACKS.map((pack) => (
+                    <button
+                        key={pack.id}
+                        type="button"
+                        role="tab"
+                        className={`sticker-picker__pack${activePack === pack.id ? " sticker-picker__pack--active" : ""}`}
+                        aria-selected={activePack === pack.id}
+                        onClick={() => setActivePack(pack.id)}
+                    >
+                        {pack.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="sticker-picker__grid" role="tabpanel" aria-label={`Bộ sticker ${activePack}`}>
+                {visibleStickers.map((sticker) => (
                     <button
                         key={sticker.id}
                         type="button"

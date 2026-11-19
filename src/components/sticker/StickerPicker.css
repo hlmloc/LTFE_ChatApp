@@ -91,3 +91,36 @@
         transition: none;
     }
 }
+
+.sticker-picker__packs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 12px;
+}
+
+.sticker-picker__pack {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 999px;
+    background: #f3f1fc;
+    color: #68637d;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sticker-picker__pack--active {
+    background: #3525cd;
+    color: #ffffff;
+}
+
+.sticker-picker__pack:hover:not(.sticker-picker__pack--active) {
+    background: #e9e5fb;
+}
+
+.sticker-picker__pack:focus-visible {
+    outline: 2px solid #3525cd;
+    outline-offset: 2px;
+}
