@@ -25,11 +25,11 @@
 .bubble {
     max-width: 65%;
     padding: 10px 16px;
-
     border-radius: 20px;
     font-size: 15px;
     line-height: 1.5;
     word-break: break-word;
+    white-space: pre-wrap;
 }
 
 .bubble.mine {
@@ -42,4 +42,15 @@
     background: #f0f2f5;
     color: #111827;
     border-bottom-left-radius: 5px;
+}
+
+.message-sticker {
+    display: block;
+    width: 144px;
+    height: 144px;
+    max-width: min(45vw, 144px);
+    object-fit: contain;
+    background: transparent;
+    border: none;
+    padding: 0;
 }

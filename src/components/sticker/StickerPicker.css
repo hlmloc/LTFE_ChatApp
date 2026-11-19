@@ -1,0 +1,126 @@
+.sticker-picker {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 12px);
+    z-index: 30;
+    width: min(320px, calc(100vw - 32px));
+    padding: 14px;
+    border: 1px solid #e9e7f4;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 12px 36px rgba(30, 24, 82, 0.14);
+    box-sizing: border-box;
+}
+
+.sticker-picker__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 0 2px;
+    color: #25223e;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.sticker-picker__close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    color: #7a7890;
+    background: transparent;
+    cursor: pointer;
+}
+
+.sticker-picker__close:hover {
+    background: #f2f0ff;
+    color: #3525cd;
+}
+
+.sticker-picker__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.sticker-picker__item {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    min-width: 0;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.sticker-picker__item:hover:not(:disabled) {
+    background: #f2efff;
+    transform: translateY(-2px);
+}
+
+.sticker-picker__item:focus-visible,
+.sticker-picker__close:focus-visible {
+    outline: 2px solid #3525cd;
+    outline-offset: 2px;
+}
+
+.sticker-picker__item:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.sticker-picker__item img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sticker-picker__item {
+        transition: none;
+    }
+}
+
+.sticker-picker__packs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 12px;
+}
+
+.sticker-picker__pack {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 999px;
+    background: #f3f1fc;
+    color: #68637d;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sticker-picker__pack--active {
+    background: #3525cd;
+    color: #ffffff;
+}
+
+.sticker-picker__pack:hover:not(.sticker-picker__pack--active) {
+    background: #e9e5fb;
+}
+
+.sticker-picker__pack:focus-visible {
+    outline: 2px solid #3525cd;
+    outline-offset: 2px;
+}
