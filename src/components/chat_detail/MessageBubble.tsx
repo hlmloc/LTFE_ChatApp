@@ -1,4 +1,5 @@
-import './MessageBubble.css';
+import { parseStickerMessage } from "../../data/stickers";
+import "./MessageBubble.css";
 
 interface MessageBubbleProps {
     text: string;
@@ -7,18 +8,26 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ text, isMine, avatar }: MessageBubbleProps) {
-    if (isMine) {
-        return (
-            <div className="message-row mine">
-                <div className="bubble mine">{text}</div>
-            </div>
-        );
-    }
+    const sticker = parseStickerMessage(text);
 
     return (
-        <div className="message-row other">
-            {avatar && <img src={avatar} alt="Avatar" className="bubble-avatar" />}
-            <div className="bubble other">{text}</div>
+        <div className={`message-row ${isMine ? "mine" : "other"}`}>
+            {!isMine && avatar && (
+                <img src={avatar} alt="Avatar" className="bubble-avatar" />
+            )}
+            {sticker ? (
+                <img
+                    className="message-sticker"
+                    src={sticker.src}
+                    alt={`Sticker: ${sticker.label}`}
+                    title={sticker.label}
+                    draggable={false}
+                />
+            ) : (
+                <div className={`bubble ${isMine ? "mine" : "other"}`}>
+                    {text}
+                </div>
+            )}
         </div>
     );
 }

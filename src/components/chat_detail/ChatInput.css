@@ -2,12 +2,10 @@
     display: flex;
     align-items: center;
     gap: 14px;
-
     width: 100%;
     min-height: 76px;
     padding: 12px 18px;
     box-sizing: border-box;
-
     background: #ffffff;
     border-top: 1px solid #f0f0f0;
 }
@@ -19,25 +17,20 @@
 .input-wrapper {
     flex: 1;
     min-width: 0;
-
     display: flex;
     align-items: center;
-
     padding: 10px 16px;
     border: 1px solid #dbdfe5;
     border-radius: 30px;
-
     background: #ffffff;
 }
 
 .text-input {
     width: 100%;
     padding: 2px 0;
-
     border: none;
     outline: none;
     background: transparent;
-
     color: #111827;
     font-size: 15px;
 }
@@ -51,15 +44,14 @@
     align-items: center;
     gap: 18px;
     flex-shrink: 0;
-
     color: #111827;
 }
 
-.action-icons button {
+.action-icons > button,
+.sticker-anchor > .sticker-trigger {
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 0;
     border: none;
     background: transparent;
@@ -67,16 +59,44 @@
     cursor: pointer;
 }
 
-.action-icons button:hover {
+.action-icons > button:hover,
+.sticker-anchor > .sticker-trigger:hover,
+.sticker-anchor > .sticker-trigger[aria-expanded="true"] {
     color: #536dfe;
 }
+
+.sticker-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
 .send-error {
     color: #dc2626;
     font-size: 13px;
     margin: 0;
 }
 
-.action-icons button:disabled {
+.action-icons > button:disabled,
+.sticker-anchor > .sticker-trigger:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+    .chat-input-container {
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .action-icons {
+        gap: 10px;
+    }
+
+    .sticker-anchor .sticker-picker {
+        position: fixed;
+        right: 12px;
+        bottom: 85px;
+        width: min(320px, calc(100vw - 24px));
+    }
 }
