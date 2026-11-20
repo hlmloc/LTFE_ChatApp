@@ -72,6 +72,7 @@ export default function ChatDetail({
             try {
                 if (type === "group") {
                     await roomService.joinRoom(name);
+                    if (!isActive) return;
                 }
 
                 const messages =

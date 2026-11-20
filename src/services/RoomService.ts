@@ -8,6 +8,7 @@ export type CreatedRoom = {
 class RoomService {
     private creating = false;
     private changingRoom = false;
+    private joiningRooms = new Map<string, Promise<void>>();
 
     async createRoom(name: string): Promise<CreatedRoom> {
         const roomName = name.trim();
@@ -87,7 +88,22 @@ class RoomService {
     }
 
     async joinRoom(name: string): Promise<void> {
-        await this.changeRoom("JOIN_ROOM", name);
+        const roomName = name.trim();
+
+        const existingRequest = this.joiningRooms.get(roomName);
+
+        if (existingRequest) {
+            return existingRequest;
+        }
+
+        const request = this.changeRoom("JOIN_ROOM", roomName)
+            .finally(() => {
+                this.joiningRooms.delete(roomName);
+            });
+
+        this.joiningRooms.set(roomName, request);
+
+        return request;
     }
 
     async outRoom(name: string): Promise<void> {
