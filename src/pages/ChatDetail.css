@@ -12,3 +12,21 @@
     border-radius: 22px;
     box-sizing: border-box;
 }
+
+.reply-draft {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+    border-top: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    font-size: 13px;
+}
+
+.reply-draft span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
