@@ -6,6 +6,7 @@
 
 .markdown-message p {
     margin: 0;
+    white-space: pre-line;
 }
 
 .markdown-message p + p {
@@ -17,12 +18,24 @@
 }
 
 .markdown-message :is(ul, ol) {
-    margin: 0.5em 0;
+    margin: 0.35em 0;
     padding-inline-start: 1.5em;
 }
 
+.markdown-message ul {
+    list-style: disc outside;
+}
+
+.markdown-message ol {
+    list-style: decimal outside;
+}
+
+.markdown-message li {
+    display: list-item;
+}
+
 .markdown-message li + li {
-    margin-top: 0.2em;
+    margin-top: 0.15em;
 }
 
 .markdown-message blockquote {
