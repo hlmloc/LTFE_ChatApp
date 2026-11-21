@@ -1,4 +1,5 @@
 import { parseStickerMessage } from "../../data/stickers";
+import MarkdownMessage from "./MarkdownMessage";
 import "./MessageBubble.css";
 
 interface MessageBubbleProps {
@@ -25,7 +26,7 @@ export default function MessageBubble({ text, isMine, avatar }: MessageBubblePro
                 />
             ) : (
                 <div className={`bubble ${isMine ? "mine" : "other"}`}>
-                    {text}
+                    <MarkdownMessage text={text} />
                 </div>
             )}
         </div>
