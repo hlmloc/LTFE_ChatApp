@@ -1,0 +1,110 @@
+.markdown-message {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.markdown-message p {
+    margin: 0;
+    white-space: pre-line;
+}
+
+.markdown-message p + p {
+    margin-top: 0.55em;
+}
+
+.markdown-message strong {
+    font-weight: 700;
+}
+
+.markdown-message :is(ul, ol) {
+    margin: 0.35em 0;
+    padding-inline-start: 1.5em;
+}
+
+.markdown-message ul {
+    list-style: disc outside;
+}
+
+.markdown-message ol {
+    list-style: decimal outside;
+}
+
+.markdown-message li {
+    display: list-item;
+}
+
+.markdown-message li + li {
+    margin-top: 0.15em;
+}
+
+.markdown-message blockquote {
+    margin: 0.5em 0;
+    padding: 0.15em 0.75em;
+    border-inline-start: 3px solid currentColor;
+    opacity: 0.85;
+}
+
+.markdown-message a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.markdown-message :not(pre) > code {
+    padding: 0.1em 0.35em;
+    border-radius: 5px;
+    background: rgb(0 0 0 / 12%);
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+.markdown-message pre {
+    max-width: 100%;
+    margin: 0.5em 0;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: rgb(0 0 0 / 16%);
+    overflow-x: auto;
+    white-space: pre;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.markdown-message pre code {
+    padding: 0;
+    background: none;
+    white-space: inherit;
+    font-size: inherit;
+}
+
+.markdown-message :is(h1, h2, h3, h4, h5, h6) {
+    margin: 0.55em 0 0.25em;
+    font-size: 1.05em;
+    line-height: 1.35;
+}
+
+.markdown-message :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+}
+
+.markdown-message hr {
+    border: 0;
+    border-top: 1px solid currentColor;
+    opacity: 0.4;
+    margin: 0.7em 0;
+}
+
+.markdown-message table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.markdown-message :is(th, td) {
+    border: 1px solid currentColor;
+    padding: 4px 7px;
+}
