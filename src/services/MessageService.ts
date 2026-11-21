@@ -106,8 +106,7 @@ class MessageService {
                     }
 
                     if (
-                        !("chatMess" in data) ||
-                        !Array.isArray(data.chatMess)
+                        !("chatData" in data) || !Array.isArray(data.chatData)
                     ) {
                         finish(
                             undefined,
@@ -116,7 +115,7 @@ class MessageService {
                         return;
                     }
 
-                    finish(data.chatMess as Message[]);
+                    finish(data.chatData as Message[]);
                 }
             );
 
