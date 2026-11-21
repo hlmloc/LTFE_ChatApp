@@ -9,6 +9,8 @@ import "./MessageList.css";
 
 type MessageListProps = {
     onEdit: (message: DisplayMessage, text: string) => void;
+    onReply: (message: DisplayMessage) => void;
+    onRecall: (message: DisplayMessage) => void;
 };
 
 function closeMessageActions(button: HTMLButtonElement) {
@@ -19,15 +21,7 @@ function closeMessageActions(button: HTMLButtonElement) {
     details.querySelector("summary")?.focus();
 }
 
-async function copyMessage(text: string) {
-    try {
-        await navigator.clipboard.writeText(text);
-    } catch {
-        window.alert("Không thể sao chép tin nhắn.");
-    }
-}
-
-export default function MessageList({ onEdit }: MessageListProps) {
+export default function MessageList({ onEdit, onReply, onRecall }: MessageListProps) {
     const messages = useSelector((state: RootState) => state.messages.messages);
     const loading = useSelector((state: RootState) => state.messages.loading);
     const error = useSelector((state: RootState) => state.messages.error);
@@ -76,7 +70,7 @@ export default function MessageList({ onEdit }: MessageListProps) {
         <div className="message-list-container">
             {visibleMessages.map((message, index) => {
                 const isMine = message.name === currentUsername;
-                const canEdit = isMine && Boolean(message.messageId);
+                const canManageMessage = isMine && Boolean(message.messageId);
                 const isSticker = Boolean(parseStickerMessage(message.mes));
                 const side = isMine ? "mine" : "other";
                 const key = message.messageId
@@ -85,10 +79,16 @@ export default function MessageList({ onEdit }: MessageListProps) {
 
                 return (
                     <div key={key} className={`message-item ${side}`}>
+                        {message.replyTo && (
+                            <div className="message-reply">
+                                {message.replyTo.author} · {message.replyTo.text}
+                            </div>
+                        )}
+
                         <div className="message-item__line">
                             <MessageBubble text={message.mes} isMine={isMine} />
 
-                            {!isSticker && (
+                            {!message.recalled && (
                                 <details
                                     className="message-actions"
                                     name="message-actions"
@@ -112,7 +112,7 @@ export default function MessageList({ onEdit }: MessageListProps) {
                                     </summary>
 
                                     <div className="message-actions__panel">
-                                        {canEdit && (
+                                        {canManageMessage && !isSticker && (
                                             <button
                                                 type="button"
                                                 onClick={event => {
@@ -128,11 +128,23 @@ export default function MessageList({ onEdit }: MessageListProps) {
                                             type="button"
                                             onClick={event => {
                                                 closeMessageActions(event.currentTarget);
-                                                void copyMessage(message.mes);
+                                                onReply(message);
                                             }}
                                         >
-                                            Sao chép
+                                            Trả lời
                                         </button>
+
+                                        {canManageMessage && (
+                                            <button
+                                                type="button"
+                                                onClick={event => {
+                                                    closeMessageActions(event.currentTarget);
+                                                    onRecall(message);
+                                                }}
+                                            >
+                                                Gỡ tin nhắn
+                                            </button>
+                                        )}
                                     </div>
                                 </details>
                             )}

@@ -16,7 +16,8 @@ import {
 } from "../store/slice/messageSlice";
 import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
-import type { DisplayMessage } from "../data/messageProtocol";
+import type { DisplayMessage, ReplyTarget } from "../data/messageProtocol";
+import { parseStickerMessage } from "../data/stickers";
 
 import "./ChatDetail.css";
 
@@ -39,6 +40,7 @@ export default function ChatDetail({
         (state: RootState) => state.auth.username
     );
     const [online, setOnline] = useState<boolean>();
+    const [replyTo, setReplyTo] = useState<ReplyTarget>();
 
     const handleSendMessage = async (content: string) => {
         if (!username) {
@@ -50,16 +52,20 @@ export default function ChatDetail({
                 ? await messageService.sendPeopleMessage(
                     name,
                     content,
-                    username
+                    username,
+                    replyTo,
                 )
                 : await messageService.sendRoomMessage(
                     name,
                     content,
-                    username
+                    username,
+                    replyTo,
                 );
 
         dispatch(addMessage(message));
+        setReplyTo(current => current === replyTo ? undefined : current);
     };
+
     function handleEditMessage(message: DisplayMessage, text: string) {
         const content = text.trim();
 
@@ -76,6 +82,35 @@ export default function ChatDetail({
 
         dispatch(addMessage(editRecord));
     }
+
+    function handleReplyMessage(message: DisplayMessage) {
+        if (message.recalled) return;
+
+        setReplyTo({
+            author: message.name,
+            text: parseStickerMessage(message.mes) ? "Sticker" : message.mes.slice(0, 160),
+            messageId: message.messageId,
+        });
+    }
+
+    function handleRecallMessage(message: DisplayMessage) {
+        if (!username || message.name !== username || !message.messageId || message.recalled) return;
+        if (!window.confirm("Gỡ tin nhắn này?")) return;
+
+        try {
+            const record = messageService.sendRecall(
+                name,
+                type === "direct" ? "people" : "room",
+                username,
+                message.messageId,
+            );
+
+            dispatch(addMessage(record));
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : "Không thể gỡ tin nhắn.");
+        }
+    }
+
     useEffect(() => {
         let isActive = true;
 
@@ -203,7 +238,18 @@ export default function ChatDetail({
         >
             <ChatHeader name={name} online={online} onBack={onBack} />
 
-            <MessageList onEdit={handleEditMessage} />
+            <MessageList
+                onEdit={handleEditMessage}
+                onReply={handleReplyMessage}
+                onRecall={handleRecallMessage}
+            />
+
+            {replyTo && (
+                <div className="reply-draft">
+                    <span>Đang trả lời {replyTo.author} · {replyTo.text}</span>
+                    <button type="button" onClick={() => setReplyTo(undefined)}>Hủy</button>
+                </div>
+            )}
 
             <ChatInput onSend={handleSendMessage} />
         </div>

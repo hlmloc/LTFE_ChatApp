@@ -115,3 +115,62 @@
 .message-actions__panel button:focus-visible {
     background: #f0f2f5;
 }
+.message-item__line {
+    width: fit-content;
+    max-width: 82%;
+}
+
+.message-item.mine .message-item__line {
+    margin-inline-start: auto;
+}
+
+.message-item__line .message-row {
+    max-width: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .message-actions:not([open]) > summary {
+        opacity: 0;
+        transition: opacity 120ms ease;
+    }
+
+    .message-item__line:hover .message-actions > summary,
+    .message-actions:focus-within > summary,
+    .message-actions[open] > summary {
+        opacity: 1;
+    }
+}
+
+.message-actions__panel {
+    margin-top: 4px;
+    min-width: 140px;
+    border-color: #34373b;
+    background: #242628;
+}
+
+.message-actions__panel button {
+    color: #f3f4f6;
+}
+
+.message-actions__panel button:hover,
+.message-actions__panel button:focus-visible {
+    background: #3b3e42;
+}
+
+.message-reply {
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: 65%;
+    margin-bottom: 4px;
+    padding: 6px 8px;
+    border-left: 3px solid #8995e8;
+    border-radius: 6px;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.message-item.mine .message-reply {
+    margin-inline-start: auto;
+}
