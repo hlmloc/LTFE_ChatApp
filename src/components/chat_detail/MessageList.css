@@ -24,3 +24,94 @@
 .message-list-container::-webkit-scrollbar-track {
     background: transparent;
 }
+.message-item {
+    margin-bottom: 12px;
+}
+
+.message-item__line {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.message-item.mine .message-item__line {
+    flex-direction: row-reverse;
+}
+
+.message-item__line .message-row {
+    width: auto;
+    min-width: 0;
+    max-width: 65%;
+    margin-bottom: 0;
+}
+
+.message-item__line .bubble {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.message-item__edited {
+    display: block;
+    margin-top: 4px;
+    color: #4b5563;
+}
+
+.message-item.mine .message-item__edited {
+    text-align: right;
+}
+
+.message-actions {
+    flex-shrink: 0;
+}
+
+.message-actions summary {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    list-style: none;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.message-item.mine .message-actions summary {
+    margin-inline-start: auto;
+}
+
+.message-actions summary::-webkit-details-marker {
+    display: none;
+}
+
+.message-actions summary:hover,
+.message-actions summary:focus-visible,
+.message-actions[open] summary {
+    background: #f0f2f5;
+    color: #354fcc;
+}
+
+.message-actions__panel {
+    display: grid;
+    min-width: 120px;
+    padding: 4px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 4px 12px #11182714;
+}
+
+.message-actions__panel button {
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    padding: 8px 10px;
+    color: #111827;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.message-actions__panel button:hover,
+.message-actions__panel button:focus-visible {
+    background: #f0f2f5;
+}
