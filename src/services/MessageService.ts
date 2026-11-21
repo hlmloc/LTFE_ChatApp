@@ -2,6 +2,8 @@
 import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
+import { parseStickerMessage } from "../data/stickers";
+import { encodeMessage } from "../data/messageProtocol";
 
 interface PendingRequest {
     key: string;
@@ -153,19 +155,28 @@ class MessageService {
             throw new Error("Không tìm thấy người nhận hoặc nhóm");
         }
 
+        const wireMes = parseStickerMessage(content)
+            ? content
+            : encodeMessage({
+                kind: "message",
+                messageId: crypto.randomUUID(),
+                format: "text",
+                text: content,
+            });
+
         await webSocketService.waitUntilConnected();
 
         webSocketService.send("SEND_CHAT", {
             type: chatType,
             to,
-            mes: content,
+            mes: wireMes,
         });
 
         return {
             id: Date.now(),
             name: myUsername,
             to,
-            mes: content,
+            mes: wireMes,
             createAt: new Date().toISOString(),
             type: chatType === "people" ? 0 : 1,
         };
@@ -187,6 +198,34 @@ class MessageService {
         return this.sendMessage(to, mes, myUsername, "room");
     }
 
+    sendEdit(
+        to: string,
+        chatType: "people" | "room",
+        username: string,
+        targetId: string,
+        text: string,): Message {
+        const mes = encodeMessage({
+            kind: "edit",
+            eventId: crypto.randomUUID(),
+            targetId,
+            text,
+        });
+
+        webSocketService.send("SEND_CHAT", {
+            type: chatType,
+            to,
+            mes,
+        });
+
+        return {
+            id: Date.now(),
+            name: username,
+            to,
+            mes,
+            createAt: new Date().toISOString(),
+            type: chatType === "people" ? 0 : 1,
+        };
+    }
     private async processQueue(): Promise<void> {
         if (this.isProcessing || this.requestQueue.length === 0) {
             return;

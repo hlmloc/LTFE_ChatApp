@@ -16,6 +16,7 @@ import {
 } from "../store/slice/messageSlice";
 import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
+import type { DisplayMessage } from "../data/messageProtocol";
 
 import "./ChatDetail.css";
 
@@ -37,7 +38,6 @@ export default function ChatDetail({
     const username = useSelector(
         (state: RootState) => state.auth.username
     );
-    const loading = useSelector((state: RootState) => state.messages.loading);
     const [online, setOnline] = useState<boolean>();
 
     const handleSendMessage = async (content: string) => {
@@ -60,8 +60,22 @@ export default function ChatDetail({
 
         dispatch(addMessage(message));
     };
+    function handleEditMessage(message: DisplayMessage, text: string) {
+        const content = text.trim();
 
+        if (!username || message.name !== username || !message.messageId) return;
+        if (!content || content === message.mes) return;
 
+        const editRecord = messageService.sendEdit(
+            name,
+            type === "direct" ? "people" : "room",
+            username,
+            message.messageId,
+            content,
+        );
+
+        dispatch(addMessage(editRecord));
+    }
     useEffect(() => {
         let isActive = true;
 
@@ -189,7 +203,7 @@ export default function ChatDetail({
         >
             <ChatHeader name={name} online={online} onBack={onBack} />
 
-            <MessageList />
+            <MessageList onEdit={handleEditMessage} />
 
             <ChatInput onSend={handleSendMessage} />
         </div>
