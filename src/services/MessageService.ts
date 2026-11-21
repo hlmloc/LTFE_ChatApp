@@ -3,7 +3,7 @@ import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
 import { parseStickerMessage } from "../data/stickers";
-import { encodeMessage } from "../data/messageProtocol";
+import { encodeMessage, type ReplyTarget } from "../data/messageProtocol";
 
 interface PendingRequest {
     key: string;
@@ -143,7 +143,8 @@ class MessageService {
         to: string,
         mes: string,
         myUsername: string,
-        chatType: "people" | "room"
+        chatType: "people" | "room",
+        replyTo?: ReplyTarget,
     ): Promise<Message> {
         const content = mes.trim();
 
@@ -155,13 +156,14 @@ class MessageService {
             throw new Error("Không tìm thấy người nhận hoặc nhóm");
         }
 
-        const wireMes = parseStickerMessage(content)
+        const wireMes = !replyTo && parseStickerMessage(content)
             ? content
             : encodeMessage({
                 kind: "message",
                 messageId: crypto.randomUUID(),
                 format: "text",
                 text: content,
+                replyTo,
             });
 
         await webSocketService.waitUntilConnected();
@@ -185,17 +187,19 @@ class MessageService {
     sendPeopleMessage(
         to: string,
         mes: string,
-        myUsername: string
+        myUsername: string,
+        replyTo?: ReplyTarget,
     ): Promise<Message> {
-        return this.sendMessage(to, mes, myUsername, "people");
+        return this.sendMessage(to, mes, myUsername, "people", replyTo);
     }
 
     sendRoomMessage(
         to: string,
         mes: string,
-        myUsername: string
+        myUsername: string,
+        replyTo?: ReplyTarget,
     ): Promise<Message> {
-        return this.sendMessage(to, mes, myUsername, "room");
+        return this.sendMessage(to, mes, myUsername, "room", replyTo);
     }
 
     sendEdit(
@@ -203,19 +207,37 @@ class MessageService {
         chatType: "people" | "room",
         username: string,
         targetId: string,
-        text: string,): Message {
-        const mes = encodeMessage({
+        text: string,
+    ): Message {
+        return this.sendAction(to, chatType, username, {
             kind: "edit",
             eventId: crypto.randomUUID(),
             targetId,
             text,
         });
+    }
 
-        webSocketService.send("SEND_CHAT", {
-            type: chatType,
-            to,
-            mes,
+    sendRecall(
+        to: string,
+        chatType: "people" | "room",
+        username: string,
+        targetId: string,
+    ): Message {
+        return this.sendAction(to, chatType, username, {
+            kind: "recall",
+            eventId: crypto.randomUUID(),
+            targetId,
         });
+    }
+
+    private sendAction(
+        to: string,
+        chatType: "people" | "room",
+        username: string,
+        packet: Parameters<typeof encodeMessage>[0],
+    ): Message {
+        const mes = encodeMessage(packet);
+        webSocketService.send("SEND_CHAT", { type: chatType, to, mes });
 
         return {
             id: Date.now(),
@@ -226,6 +248,7 @@ class MessageService {
             type: chatType === "people" ? 0 : 1,
         };
     }
+
     private async processQueue(): Promise<void> {
         if (this.isProcessing || this.requestQueue.length === 0) {
             return;
