@@ -60,6 +60,54 @@
     text-align: right;
 }
 
+.message-edit {
+    width: min(100%, 360px);
+    margin-inline-start: auto;
+}
+
+.message-edit textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #8995e8;
+    border-radius: 8px;
+    resize: vertical;
+    font: inherit;
+}
+
+.message-edit p {
+    margin: 4px 0;
+    color: #b91c1c;
+}
+
+.message-edit__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.message-edit__actions button {
+    padding: 5px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: #f0f2f5;
+    color: #111827;
+    font: inherit;
+    cursor: pointer;
+}
+
+.message-edit__actions button[type="submit"] {
+    background: #354fcc;
+    color: white;
+}
+
+.message-edit__actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .message-actions {
     flex-shrink: 0;
 }

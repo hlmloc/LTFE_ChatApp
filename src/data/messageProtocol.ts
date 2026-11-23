@@ -26,6 +26,13 @@ export type DisplayMessage = Message & {
     replyTo?: ReplyTarget;
 };
 
+export function getEditTargetId(message: DisplayMessage): string | undefined {
+    if (message.messageId) return message.messageId;
+    if (Number.isSafeInteger(message.id) && message.id > 0) {
+        return `legacy:${message.id}`;
+    }
+}
+
 export function encodeMessage(packet: Packet): string {
     return PREFIX + JSON.stringify(packet);
 }
@@ -117,11 +124,11 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
     }
 
     return messages.map(message => {
-        if (!message.messageId) return message;
+        const targetId = getEditTargetId(message);
+        if (!targetId) return message;
 
-        const key = JSON.stringify([message.name, message.messageId]);
-
-        if (recalls.has(key)) {
+        const key = JSON.stringify([message.name, targetId]);
+        if (message.messageId && recalls.has(key)) {
             return { ...message, mes: recalledText, recalled: true, replyTo: undefined };
         }
 

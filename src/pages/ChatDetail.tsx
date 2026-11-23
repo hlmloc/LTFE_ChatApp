@@ -16,7 +16,7 @@ import {
 } from "../store/slice/messageSlice";
 import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
-import type { DisplayMessage, ReplyTarget } from "../data/messageProtocol";
+import { getEditTargetId, type DisplayMessage, type ReplyTarget } from "../data/messageProtocol";
 import { parseStickerMessage } from "../data/stickers";
 
 import "./ChatDetail.css";
@@ -68,15 +68,18 @@ export default function ChatDetail({
 
     function handleEditMessage(message: DisplayMessage, text: string) {
         const content = text.trim();
+        const targetId = getEditTargetId(message);
 
-        if (!username || message.name !== username || !message.messageId) return;
+        if (!username || message.name !== username || !targetId || message.recalled || parseStickerMessage(message.mes)) {
+            throw new Error("Không thể chỉnh sửa tin nhắn này");
+        }
         if (!content || content === message.mes) return;
 
         const editRecord = messageService.sendEdit(
             name,
             type === "direct" ? "people" : "room",
             username,
-            message.messageId,
+            targetId,
             content,
         );
 
@@ -170,6 +173,7 @@ export default function ChatDetail({
                 }
 
                 const data = response.data as {
+                    id?: number;
                     name?: string;
                     to?: string;
                     mes?: string;
@@ -205,7 +209,7 @@ export default function ChatDetail({
 
                 dispatch(
                     addMessage({
-                        id: Date.now(),
+                        id: typeof data.id === "number" ? data.id : -Date.now(),
                         name: data.name,
                         to: data.to!,
                         mes: data.mes,
