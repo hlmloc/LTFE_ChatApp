@@ -1,11 +1,20 @@
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Bold, Camera, Code, Italic, Link, List, Mic, Image as ImageIcon, SmilePlus, Plus, Send, Strikethrough, Type } from "lucide-react";
+import { Bold, Camera, Check, Code, Italic, Link, List, Mic, Image as ImageIcon, SmilePlus, Plus, Send, Strikethrough, Type } from "lucide-react";
 import StickerPicker from "../sticker/StickerPicker";
 import { createStickerMessage, type StickerId } from "../../data/stickers";
 import "./ChatInput.css";
 
 type ChatInputProps = {
     onSend: (message: string) => Promise<void>;
+    edit?: {
+        targetId: string;
+        originalText: string;
+        text: string;
+        error?: string;
+        onChange: (text: string) => void;
+        onSave: (text: string) => void;
+        onCancel: () => void;
+    };
 };
 
 type Format = "bold" | "italic" | "strike" | "code" | "list" | "link";
@@ -19,7 +28,7 @@ const formats = [
     { id: "link", label: "Liên kết", icon: Link },
 ] as const;
 
-export default function ChatInput({ onSend }: ChatInputProps) {
+export default function ChatInput({ onSend, edit }: ChatInputProps) {
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState("");
@@ -29,6 +38,13 @@ export default function ChatInput({ onSend }: ChatInputProps) {
     const pickerAnchorRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const pendingSelection = useRef<[number, number] | null>(null);
+
+    const editTargetId = edit?.targetId;
+    const text = edit?.text ?? message;
+    const setText = edit?.onChange ?? setMessage;
+    const content = text.trim();
+    const canSubmit = Boolean(content) && content !== edit?.originalText.trim() && !sending;
+    const submitLabel = edit ? "Lưu chỉnh sửa" : "Gửi tin nhắn";
 
     const closePicker = useCallback(() => setPickerOpen(false), []);
 
@@ -61,7 +77,15 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             input.setSelectionRange(start, end);
             pendingSelection.current = null;
         }
-    }, [message]);
+    }, [text]);
+
+    useLayoutEffect(() => {
+        const input = inputRef.current;
+        if (!input || !editTargetId || sending) return;
+
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+    }, [editTargetId, sending]);
 
     const sendContent = async (content: string, clearMessage: boolean) => {
         if (!content || sendingRef.current) return;
@@ -83,7 +107,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
     const updateSelection = (start: number, end: number, replacement: string, nextStart: number, nextEnd: number) => {
         pendingSelection.current = [nextStart, nextEnd];
-        setMessage(message.slice(0, start) + replacement + message.slice(end));
+        setText(text.slice(0, start) + replacement + text.slice(end));
     };
 
     const applyFormat = (format: Format) => {
@@ -92,13 +116,13 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
         const start = input.selectionStart;
         const end = input.selectionEnd;
-        const selected = message.slice(start, end);
+        const selected = text.slice(start, end);
 
         if (format === "list") {
-            const lineStart = message.lastIndexOf("\n", start - 1) + 1;
-            const nextLine = message.indexOf("\n", end);
-            const lineEnd = nextLine === -1 ? message.length : nextLine;
-            const source = message.slice(lineStart, lineEnd);
+            const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+            const nextLine = text.indexOf("\n", end);
+            const lineEnd = nextLine === -1 ? text.length : nextLine;
+            const source = text.slice(lineStart, lineEnd);
             const formatted = source.split("\n").map(line => line.startsWith("- ") ? line : `- ${line}`).join("\n");
             const offset = formatted.length - source.length;
             const cursor = start + (source.startsWith("- ") ? 0 : 2);
@@ -120,7 +144,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             italic: ["*", "*", "văn bản"],
             strike: ["~~", "~~", "văn bản"],
             code: codeBlock
-                ? [start === 0 || message[start - 1] === "\n" ? "```\n" : "\n```\n", end === message.length || message[end] === "\n" ? "\n```" : "\n```\n", "code"]
+                ? [start === 0 || text[start - 1] === "\n" ? "```\n" : "\n```\n", end === text.length || text[end] === "\n" ? "\n```" : "\n```\n", "code"]
                 : ["`", "`", "code"],
         } as const;
         const [before, after, placeholder] = markers[format];
@@ -128,12 +152,25 @@ export default function ChatInput({ onSend }: ChatInputProps) {
         updateSelection(start, end, before + content + after, start + before.length, start + before.length + content.length);
     };
 
+    const submitText = () => {
+        if (!canSubmit) return;
+
+        if (edit) edit.onSave(content);
+        else void sendContent(content, true);
+    };
+
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        void sendContent(message.trim(), true);
+        submitText();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (edit && event.key === "Escape" && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            edit.onCancel();
+            return;
+        }
+
         if ((event.ctrlKey || event.metaKey) && !event.altKey) {
             const key = event.key.toLowerCase();
             if (key === "b" || key === "i") {
@@ -145,7 +182,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            void sendContent(message.trim(), true);
+            submitText();
         }
     };
 
@@ -155,7 +192,10 @@ export default function ChatInput({ onSend }: ChatInputProps) {
     };
 
     return (
-        <form className="chat-input-container" onSubmit={handleSubmit}>
+        <form
+            className={edit ? "chat-input-container chat-input-container--editing" : "chat-input-container"}
+            onSubmit={handleSubmit}
+        >
             <button type="button" className="btn-camera">
                 <Camera size={20} strokeWidth={2.5} />
             </button>
@@ -199,64 +239,71 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                         rows={1}
                         placeholder="Nhắn tin..."
                         className="text-input"
-                        aria-label="Nội dung tin nhắn"
-                        value={message}
-                        onChange={event => setMessage(event.target.value)}
+                        aria-label={edit ? "Nội dung chỉnh sửa" : "Nội dung tin nhắn"}
+                        aria-describedby={edit ? "edit-draft-label" : undefined}
+                        value={text}
+                        onChange={event => setText(event.target.value)}
                         onKeyDown={handleKeyDown}
                         disabled={sending}
                     />
                 </div>
+                {edit?.error && <p className="send-error" role="alert">{edit.error}</p>}
             </div>
 
             <div className="action-icons">
-                <button type="button" aria-label="Ghi âm">
-                    <Mic size={24} strokeWidth={1.5} />
-                </button>
+                {!edit && (
+                    <>
+                        <button type="button" aria-label="Ghi âm">
+                            <Mic size={24} strokeWidth={1.5} />
+                        </button>
 
-                <button type="button" aria-label="Gửi hình ảnh">
-                    <ImageIcon size={24} strokeWidth={1.5} />
-                </button>
+                        <button type="button" aria-label="Gửi hình ảnh">
+                            <ImageIcon size={24} strokeWidth={1.5} />
+                        </button>
 
-                <div className="sticker-anchor" ref={pickerAnchorRef}>
-                    <button
-                        type="button"
-                        className="sticker-trigger"
-                        aria-label="Chọn sticker"
-                        aria-expanded={pickerOpen}
-                        aria-haspopup="dialog"
-                        title="Sticker"
-                        disabled={sending}
-                        onClick={() => {
-                            setPickerOpen(current => !current);
-                            setToolbarOpen(false);
-                        }}
-                    >
-                        <SmilePlus size={24} strokeWidth={1.5} />
-                    </button>
-                    {pickerOpen && (
-                        <StickerPicker
-                            onSelect={handleStickerSelect}
-                            onClose={closePicker}
-                            disabled={sending}
-                        />
-                    )}
-                </div>
+                        <div className="sticker-anchor" ref={pickerAnchorRef}>
+                            <button
+                                type="button"
+                                className="sticker-trigger"
+                                aria-label="Chọn sticker"
+                                aria-expanded={pickerOpen}
+                                aria-haspopup="dialog"
+                                title="Sticker"
+                                disabled={sending}
+                                onClick={() => {
+                                    setPickerOpen(current => !current);
+                                    setToolbarOpen(false);
+                                }}
+                            >
+                                <SmilePlus size={24} strokeWidth={1.5} />
+                            </button>
+                            {pickerOpen && (
+                                <StickerPicker
+                                    onSelect={handleStickerSelect}
+                                    onClose={closePicker}
+                                    disabled={sending}
+                                />
+                            )}
+                        </div>
 
-                <button type="button" aria-label="Thêm">
-                    <Plus size={26} strokeWidth={1.5} />
-                </button>
+                        <button type="button" aria-label="Thêm">
+                            <Plus size={26} strokeWidth={1.5} />
+                        </button>
+                    </>
+                )}
 
                 <button
                     type="submit"
-                    disabled={!message.trim() || sending}
-                    title="Gửi tin nhắn"
-                    aria-label="Gửi tin nhắn"
+                    className={edit ? "save-edit-button" : undefined}
+                    disabled={!canSubmit}
+                    title={submitLabel}
+                    aria-label={submitLabel}
                 >
-                    <Send size={22} />
+                    {edit ? <Check size={19} aria-hidden="true" /> : <Send size={22} />}
                 </button>
             </div>
 
-            {error && <p className="send-error" role="alert">{error}</p>}
+            {!edit && error && <p className="send-error" role="alert">{error}</p>}
         </form>
     );
 }

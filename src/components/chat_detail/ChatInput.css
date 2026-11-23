@@ -147,6 +147,27 @@
     cursor: not-allowed;
 }
 
+.chat-input-container--editing {
+    flex-shrink: 0;
+    min-height: 0;
+    gap: 10px;
+    background: #f3f4f6;
+    border-top: 0;
+}
+
+.action-icons > .save-edit-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #354fcc;
+    color: #ffffff;
+}
+
+.action-icons > .save-edit-button:hover:not(:disabled) {
+    background: #2d42ad;
+    color: #ffffff;
+}
+
 @media (max-width: 600px) {
     .chat-input-container {
         gap: 8px;

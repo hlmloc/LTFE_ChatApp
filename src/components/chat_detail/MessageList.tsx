@@ -1,5 +1,4 @@
 import { MoreHorizontal } from "lucide-react";
-import { useState } from "react";
 import { useSelector } from "react-redux";
 
 import { getEditTargetId, resolveMessages, type DisplayMessage } from "../../data/messageProtocol";
@@ -9,7 +8,7 @@ import MessageBubble from "./MessageBubble";
 import "./MessageList.css";
 
 type MessageListProps = {
-    onEdit: (message: DisplayMessage, text: string) => void;
+    onEdit: (message: DisplayMessage) => void;
     onReply: (message: DisplayMessage) => void;
     onRecall: (message: DisplayMessage) => void;
 };
@@ -27,21 +26,6 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
     const loading = useSelector((state: RootState) => state.messages.loading);
     const error = useSelector((state: RootState) => state.messages.error);
     const currentUsername = useSelector((state: RootState) => state.auth.username);
-    const [editDraft, setEditDraft] = useState<{ key: string; text: string; error?: string }>();
-
-    function saveEdit(message: DisplayMessage) {
-        if (!editDraft || !editDraft.text.trim()) return;
-
-        try {
-            onEdit(message, editDraft.text);
-            setEditDraft(undefined);
-        } catch (error) {
-            setEditDraft({
-                ...editDraft,
-                error: error instanceof Error ? error.message : "Không thể lưu chỉnh sửa",
-            });
-        }
-    }
 
     if (loading) {
         return (
@@ -80,7 +64,6 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
                 const key = message.messageId
                     ? `${message.name}:${message.messageId}`
                     : `legacy:${message.id}:${index}`;
-                const draft = canEdit && editDraft?.key === key ? editDraft : undefined;
 
                 return (
                     <div key={key} className={`message-item ${side}`}>
@@ -90,103 +73,70 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
                             </div>
                         )}
 
-                        {draft ? (
-                            <form
-                                className="message-edit"
-                                onSubmit={event => {
-                                    event.preventDefault();
-                                    saveEdit(message);
-                                }}
-                                onKeyDown={event => {
-                                    if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-                                        setEditDraft(undefined);
-                                    }
-                                }}
-                            >
-                                <textarea
-                                    aria-label="Chỉnh sửa tin nhắn"
-                                    rows={3}
-                                    autoFocus
-                                    value={draft.text}
-                                    onChange={event => setEditDraft({ key, text: event.target.value })}
-                                />
-                                {draft.error && <p role="alert">{draft.error}</p>}
-                                <div className="message-edit__actions">
-                                    <button type="button" onClick={() => setEditDraft(undefined)}>Hủy</button>
-                                    <button
-                                        type="submit"
-                                        disabled={!draft.text.trim() || draft.text.trim() === message.mes}
-                                    >
-                                        Lưu
-                                    </button>
-                                </div>
-                            </form>
-                        ) : (
-                            <div className="message-item__line">
-                                <MessageBubble text={message.mes} isMine={isMine} />
+                        <div className="message-item__line">
+                            <MessageBubble text={message.mes} isMine={isMine} />
 
-                                {!message.recalled && (
-                                    <details
-                                        className="message-actions"
-                                        name="message-actions"
-                                        onBlur={event => {
-                                            const details = event.currentTarget;
+                            {!message.recalled && (
+                                <details
+                                    className="message-actions"
+                                    name="message-actions"
+                                    onBlur={event => {
+                                        const details = event.currentTarget;
 
-                                            if (!details.contains(event.relatedTarget)) {
-                                                details.open = false;
-                                            }
-                                        }}
-                                        onKeyDown={event => {
-                                            const details = event.currentTarget;
-                                            if (event.key !== "Escape" || !details.open) return;
-
+                                        if (!details.contains(event.relatedTarget)) {
                                             details.open = false;
-                                            details.querySelector("summary")?.focus();
-                                        }}
-                                    >
-                                        <summary aria-label="Thao tác với tin nhắn">
-                                            <MoreHorizontal size={18} aria-hidden="true" />
-                                        </summary>
+                                        }
+                                    }}
+                                    onKeyDown={event => {
+                                        const details = event.currentTarget;
+                                        if (event.key !== "Escape" || !details.open) return;
 
-                                        <div className="message-actions__panel">
+                                        details.open = false;
+                                        details.querySelector("summary")?.focus();
+                                    }}
+                                >
+                                    <summary aria-label="Thao tác với tin nhắn">
+                                        <MoreHorizontal size={18} aria-hidden="true" />
+                                    </summary>
+
+                                    <div className="message-actions__panel">
+                                        <button
+                                            type="button"
+                                            onClick={event => {
+                                                closeMessageActions(event.currentTarget);
+                                                onReply(message);
+                                            }}
+                                        >
+                                            Trả lời
+                                        </button>
+
+                                        {canEdit && (
                                             <button
                                                 type="button"
                                                 onClick={event => {
                                                     closeMessageActions(event.currentTarget);
-                                                    onReply(message);
+                                                    onEdit(message);
                                                 }}
                                             >
-                                                Trả lời
+                                                Chỉnh sửa
                                             </button>
+                                        )}
 
-                                            {canEdit && (
-                                                <button
-                                                    type="button"
-                                                    onClick={event => {
-                                                        closeMessageActions(event.currentTarget);
-                                                        setEditDraft({ key, text: message.mes });
-                                                    }}
-                                                >
-                                                    Chỉnh sửa
-                                                </button>
-                                            )}
-
-                                            {canManageMessage && (
-                                                <button
-                                                    type="button"
-                                                    onClick={event => {
-                                                        closeMessageActions(event.currentTarget);
-                                                        onRecall(message);
-                                                    }}
-                                                >
-                                                    Gỡ tin nhắn
-                                                </button>
-                                            )}
-                                        </div>
-                                    </details>
-                                )}
-                            </div>
-                        )}
+                                        {canManageMessage && (
+                                            <button
+                                                type="button"
+                                                onClick={event => {
+                                                    closeMessageActions(event.currentTarget);
+                                                    onRecall(message);
+                                                }}
+                                            >
+                                                Gỡ tin nhắn
+                                            </button>
+                                        )}
+                                    </div>
+                                </details>
+                            )}
+                        </div>
 
                         {message.edited && (
                             <small className="message-item__edited">
