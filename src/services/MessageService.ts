@@ -5,6 +5,13 @@ import type { Message } from "../types/message";
 import { parseStickerMessage } from "../data/stickers";
 import { encodeMessage, type ReplyTarget } from "../data/messageProtocol";
 
+function createMessageId(): string {
+    return Array.from(
+        crypto.getRandomValues(new Uint8Array(16)),
+        byte => byte.toString(16).padStart(2, "0"),
+    ).join("");
+}
+
 interface PendingRequest {
     key: string;
     name: string;
@@ -107,9 +114,10 @@ class MessageService {
                         return;
                     }
 
-                    if (
-                        !("chatData" in data) || !Array.isArray(data.chatData)
-                    ) {
+                    const messages = "chatData" in data && Array.isArray(data.chatData)
+                        ? data.chatData
+                        : "chatMess" in data ? data.chatMess : undefined;
+                    if (!Array.isArray(messages)) {
                         finish(
                             undefined,
                             new Error("Dữ liệu tin nhắn nhóm không hợp lệ")
@@ -117,7 +125,7 @@ class MessageService {
                         return;
                     }
 
-                    finish(data.chatData as Message[]);
+                    finish(messages as Message[]);
                 }
             );
 
@@ -160,7 +168,7 @@ class MessageService {
             ? content
             : encodeMessage({
                 kind: "message",
-                messageId: crypto.randomUUID(),
+                messageId: createMessageId(),
                 format: "text",
                 text: content,
                 replyTo,
@@ -175,7 +183,7 @@ class MessageService {
         });
 
         return {
-            id: Date.now(),
+            id: -Date.now(),
             name: myUsername,
             to,
             mes: wireMes,
@@ -211,7 +219,7 @@ class MessageService {
     ): Message {
         return this.sendAction(to, chatType, username, {
             kind: "edit",
-            eventId: crypto.randomUUID(),
+            eventId: createMessageId(),
             targetId,
             text,
         });
@@ -225,7 +233,7 @@ class MessageService {
     ): Message {
         return this.sendAction(to, chatType, username, {
             kind: "recall",
-            eventId: crypto.randomUUID(),
+            eventId: createMessageId(),
             targetId,
         });
     }

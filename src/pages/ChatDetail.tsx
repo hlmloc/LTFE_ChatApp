@@ -1,4 +1,5 @@
 import {useEffect, useState} from "react";
+import { X } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 
 import MessageList from "../components/chat_detail/MessageList";
@@ -16,7 +17,7 @@ import {
 } from "../store/slice/messageSlice";
 import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
-import type { DisplayMessage, ReplyTarget } from "../data/messageProtocol";
+import { getEditTargetId, type DisplayMessage, type ReplyTarget } from "../data/messageProtocol";
 import { parseStickerMessage } from "../data/stickers";
 
 import "./ChatDetail.css";
@@ -26,6 +27,13 @@ type ChatDetailProps = {
     name: string;
     type: "direct" | "group";
     onBack?: () => void;
+};
+
+type EditDraft = {
+    message: DisplayMessage;
+    targetId: string;
+    text: string;
+    error?: string;
 };
 
 export default function ChatDetail({
@@ -41,6 +49,7 @@ export default function ChatDetail({
     );
     const [online, setOnline] = useState<boolean>();
     const [replyTo, setReplyTo] = useState<ReplyTarget>();
+    const [editDraft, setEditDraft] = useState<EditDraft>();
 
     const handleSendMessage = async (content: string) => {
         if (!username) {
@@ -66,26 +75,48 @@ export default function ChatDetail({
         setReplyTo(current => current === replyTo ? undefined : current);
     };
 
-    function handleEditMessage(message: DisplayMessage, text: string) {
-        const content = text.trim();
+    function handleStartEditing(message: DisplayMessage) {
+        const targetId = getEditTargetId(message);
+        if (!targetId) return;
 
-        if (!username || message.name !== username || !message.messageId) return;
-        if (!content || content === message.mes) return;
+        setEditDraft(current => current?.targetId === targetId
+            ? current
+            : { message, targetId, text: message.mes });
+    }
 
-        const editRecord = messageService.sendEdit(
-            name,
-            type === "direct" ? "people" : "room",
-            username,
-            message.messageId,
-            content,
-        );
+    function handleSaveEdit(content: string) {
+        if (!editDraft) return;
+        const { message, targetId } = editDraft;
 
-        dispatch(addMessage(editRecord));
+        if (!content || content === message.mes.trim()) return;
+
+        try {
+            if (!username || message.name !== username || message.recalled || parseStickerMessage(message.mes)) {
+                throw new Error("Không thể chỉnh sửa tin nhắn này");
+            }
+
+            const editRecord = messageService.sendEdit(
+                name,
+                type === "direct" ? "people" : "room",
+                username,
+                targetId,
+                content,
+            );
+
+            dispatch(addMessage(editRecord));
+            setEditDraft(undefined);
+        } catch (error) {
+            setEditDraft({
+                ...editDraft,
+                error: error instanceof Error ? error.message : "Không thể lưu chỉnh sửa",
+            });
+        }
     }
 
     function handleReplyMessage(message: DisplayMessage) {
         if (message.recalled) return;
 
+        setEditDraft(undefined);
         setReplyTo({
             author: message.name,
             text: parseStickerMessage(message.mes) ? "Sticker" : message.mes.slice(0, 160),
@@ -106,6 +137,7 @@ export default function ChatDetail({
             );
 
             dispatch(addMessage(record));
+            setEditDraft(current => current?.targetId === message.messageId ? undefined : current);
         } catch (error) {
             window.alert(error instanceof Error ? error.message : "Không thể gỡ tin nhắn.");
         }
@@ -170,6 +202,7 @@ export default function ChatDetail({
                 }
 
                 const data = response.data as {
+                    id?: number;
                     name?: string;
                     to?: string;
                     mes?: string;
@@ -205,7 +238,7 @@ export default function ChatDetail({
 
                 dispatch(
                     addMessage({
-                        id: Date.now(),
+                        id: typeof data.id === "number" ? data.id : -Date.now(),
                         name: data.name,
                         to: data.to!,
                         mes: data.mes,
@@ -239,19 +272,44 @@ export default function ChatDetail({
             <ChatHeader name={name} online={online} onBack={onBack} />
 
             <MessageList
-                onEdit={handleEditMessage}
+                onEdit={handleStartEditing}
                 onReply={handleReplyMessage}
                 onRecall={handleRecallMessage}
             />
 
-            {replyTo && (
+            {editDraft && (
+                <div className="edit-draft">
+                    <span id="edit-draft-label">Chỉnh sửa tin nhắn</span>
+                    <button
+                        type="button"
+                        aria-label="Hủy chỉnh sửa"
+                        title="Hủy chỉnh sửa"
+                        onClick={() => setEditDraft(undefined)}
+                    >
+                        <X size={18} aria-hidden="true" />
+                    </button>
+                </div>
+            )}
+
+            {!editDraft && replyTo && (
                 <div className="reply-draft">
                     <span>Đang trả lời {replyTo.author} · {replyTo.text}</span>
                     <button type="button" onClick={() => setReplyTo(undefined)}>Hủy</button>
                 </div>
             )}
 
-            <ChatInput onSend={handleSendMessage} />
+            <ChatInput
+                onSend={handleSendMessage}
+                edit={editDraft && {
+                    targetId: editDraft.targetId,
+                    originalText: editDraft.message.mes,
+                    text: editDraft.text,
+                    error: editDraft.error,
+                    onChange: text => setEditDraft({ ...editDraft, text, error: undefined }),
+                    onSave: handleSaveEdit,
+                    onCancel: () => setEditDraft(undefined),
+                }}
+            />
         </div>
     );
 }

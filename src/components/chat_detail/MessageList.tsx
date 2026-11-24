@@ -1,14 +1,14 @@
 import { MoreHorizontal } from "lucide-react";
 import { useSelector } from "react-redux";
 
-import { resolveMessages, type DisplayMessage } from "../../data/messageProtocol";
+import { getEditTargetId, resolveMessages, type DisplayMessage } from "../../data/messageProtocol";
 import { parseStickerMessage } from "../../data/stickers";
 import type { RootState } from "../../store/Store";
 import MessageBubble from "./MessageBubble";
 import "./MessageList.css";
 
 type MessageListProps = {
-    onEdit: (message: DisplayMessage, text: string) => void;
+    onEdit: (message: DisplayMessage) => void;
     onReply: (message: DisplayMessage) => void;
     onRecall: (message: DisplayMessage) => void;
 };
@@ -26,19 +26,6 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
     const loading = useSelector((state: RootState) => state.messages.loading);
     const error = useSelector((state: RootState) => state.messages.error);
     const currentUsername = useSelector((state: RootState) => state.auth.username);
-
-    function editMessage(message: DisplayMessage) {
-        const text = window.prompt("Chỉnh sửa tin nhắn", message.mes);
-        if (text === null) return;
-
-        try {
-            onEdit(message, text);
-        } catch (error) {
-            window.alert(
-                error instanceof Error ? error.message : "Không thể lưu chỉnh sửa",
-            );
-        }
-    }
 
     if (loading) {
         return (
@@ -71,7 +58,8 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
             {visibleMessages.map((message, index) => {
                 const isMine = message.name === currentUsername;
                 const canManageMessage = isMine && Boolean(message.messageId);
-                const isSticker = Boolean(parseStickerMessage(message.mes));
+                const canEdit = isMine && !message.recalled && Boolean(getEditTargetId(message))
+                    && !parseStickerMessage(message.mes);
                 const side = isMine ? "mine" : "other";
                 const key = message.messageId
                     ? `${message.name}:${message.messageId}`
@@ -112,18 +100,6 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
                                     </summary>
 
                                     <div className="message-actions__panel">
-                                        {canManageMessage && !isSticker && (
-                                            <button
-                                                type="button"
-                                                onClick={event => {
-                                                    closeMessageActions(event.currentTarget);
-                                                    editMessage(message);
-                                                }}
-                                            >
-                                                Chỉnh sửa
-                                            </button>
-                                        )}
-
                                         <button
                                             type="button"
                                             onClick={event => {
@@ -133,6 +109,18 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
                                         >
                                             Trả lời
                                         </button>
+
+                                        {canEdit && (
+                                            <button
+                                                type="button"
+                                                onClick={event => {
+                                                    closeMessageActions(event.currentTarget);
+                                                    onEdit(message);
+                                                }}
+                                            >
+                                                Chỉnh sửa
+                                            </button>
+                                        )}
 
                                         {canManageMessage && (
                                             <button
