@@ -1,6 +1,6 @@
 .chat-input-container {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 14px;
     width: 100%;
     min-height: 76px;
@@ -107,6 +107,7 @@
     display: flex;
     align-items: center;
     gap: 18px;
+    height: 38px;
     flex-shrink: 0;
     color: #111827;
 }
@@ -188,4 +189,49 @@
         bottom: 85px;
         width: min(320px, calc(100vw - 24px));
     }
+}
+
+.upload-status {
+    font-size: 13px;
+    color: #2563eb;
+    margin: 2px 0 6px 4px;
+}
+
+/* Làm gọn khung preview thành ô vuông nhỏ vừa vặn */
+.uploaded-image-preview {
+    position: relative;
+    display: inline-flex;
+    align-self: flex-start; /* Không kéo giãn hết chiều ngang */
+    margin: 2px 0 8px 4px;
+}
+
+.uploaded-image-preview img {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    display: block;
+}
+
+.remove-preview-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: #334155;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.remove-preview-btn:hover {
+    background: #0f172a;
 }
