@@ -202,7 +202,7 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
 
         const key = JSON.stringify([message.name, targetId]);
         if (message.messageId && recalls.has(key)) {
-            return { ...message, mes: recalledText, recalled: true, replyTo: undefined };
+            return { ...message, mes: recalledText, recalled: true, replyTo: undefined, attachment: undefined, };
         }
 
         const reply = message.replyTo;

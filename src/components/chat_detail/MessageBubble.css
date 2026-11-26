@@ -54,3 +54,31 @@
     border: none;
     padding: 0;
 }
+/* Hình ảnh trong tin nhắn */
+.message-image-link {
+    display: block;
+    max-width: min(65vw, 280px);
+    border-radius: 14px;
+    overflow: hidden;
+    line-height: 0;
+}
+
+.message-image {
+    display: block;
+    max-width: 100%;
+    max-height: 320px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 14px;
+    cursor: zoom-in;
+}
+
+.message-image-link:hover {
+    opacity: 0.95;
+}
+
+.message-image-link:focus-visible {
+    outline: 2px solid #536dfe;
+    outline-offset: 3px;
+}

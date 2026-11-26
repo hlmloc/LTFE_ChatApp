@@ -137,7 +137,11 @@ export default function ChatDetail({
         setEditDraft(undefined);
         setReplyTo({
             author: message.name,
-            text: parseStickerMessage(message.mes) ? "Sticker" : message.mes.slice(0, 160),
+            text: message.attachment
+                ? "Hình ảnh"
+                : parseStickerMessage(message.mes)
+                    ? "Sticker"
+                    : message.mes.slice(0, 160),
             messageId: message.messageId,
         });
     }

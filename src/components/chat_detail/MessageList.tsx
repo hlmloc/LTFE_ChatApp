@@ -58,8 +58,11 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
             {visibleMessages.map((message, index) => {
                 const isMine = message.name === currentUsername;
                 const canManageMessage = isMine && Boolean(message.messageId);
-                const canEdit = isMine && !message.recalled && Boolean(getEditTargetId(message))
-                    && !parseStickerMessage(message.mes);
+                const canEdit = isMine &&
+                    !message.attachment &&
+                    !message.recalled &&
+                    Boolean(getEditTargetId(message)) &&
+                    !parseStickerMessage(message.mes);
                 const side = isMine ? "mine" : "other";
                 const key = message.messageId
                     ? `${message.name}:${message.messageId}`
@@ -74,7 +77,12 @@ export default function MessageList({ onEdit, onReply, onRecall }: MessageListPr
                         )}
 
                         <div className="message-item__line">
-                            <MessageBubble text={message.mes} isMine={isMine} />
+                            <MessageBubble
+                                text={message.mes}
+                                isMine={isMine}
+                                attachment={message.attachment}
+                                recalled={message.recalled}
+                            />
 
                             {!message.recalled && (
                                 <details
