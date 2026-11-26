@@ -13,8 +13,10 @@ import StickerPicker from "../sticker/StickerPicker";
 import { createStickerMessage, type StickerId } from "../../data/stickers";
 import "./ChatInput.css";
 import { uploadImage, type UploadedImage } from "../../services/MediaService";
+
 type ChatInputProps = {
     onSend: (message: string) => Promise<void>;
+    onSendImage: (image: UploadedImage) => Promise<void>;
     edit?: {
         targetId: string;
         originalText: string;
@@ -37,7 +39,11 @@ const formats = [
     { id: "link", label: "Liên kết", icon: Link },
 ] as const;
 
-export default function ChatInput({ onSend, edit }: ChatInputProps) {
+export default function ChatInput({
+                                      onSend,
+                                      onSendImage,
+                                      edit
+                                  }: ChatInputProps) {
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState("");
@@ -55,7 +61,9 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
     const text = edit?.text ?? message;
     const setText = edit?.onChange ?? setMessage;
     const content = text.trim();
-    const canSubmit = Boolean(content) && content !== edit?.originalText.trim() && !sending;
+    const canSubmit = edit
+        ? Boolean(content) && content !== edit.originalText.trim() && !sending
+        : (Boolean(content) || Boolean(uploadedImage)) && !sending && !uploadingImage;
     const submitLabel = edit ? "Lưu chỉnh sửa" : "Gửi tin nhắn";
 
     const closePicker = useCallback(() => setPickerOpen(false), []);
@@ -130,10 +138,7 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
 
         try {
             const result = await uploadImage(file);
-
             setUploadedImage(result);
-
-            console.log("Upload ảnh thành công:", result);
         } catch (err) {
             setError(
                 err instanceof Error
@@ -142,8 +147,31 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
             );
         } finally {
             setUploadingImage(false);
-
             event.target.value = "";
+        }
+    };
+
+    const handleSendUploadedImage = async () => {
+        if (!uploadedImage || uploadingImage || sendingRef.current) {
+            return;
+        }
+
+        sendingRef.current = true;
+        setSending(true);
+        setError("");
+
+        try {
+            await onSendImage(uploadedImage);
+            setUploadedImage(null);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Không thể gửi hình ảnh"
+            );
+        } finally {
+            sendingRef.current = false;
+            setSending(false);
         }
     };
 
@@ -194,16 +222,26 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
         updateSelection(start, end, before + content + after, start + before.length, start + before.length + content.length);
     };
 
-    const submitText = () => {
+    const submitText = async () => {
         if (!canSubmit) return;
 
-        if (edit) edit.onSave(content);
-        else void sendContent(content, true);
+        if (edit) {
+            edit.onSave(content);
+            return;
+        }
+
+        if (uploadedImage) {
+            await handleSendUploadedImage();
+        }
+
+        if (content) {
+            await sendContent(content, true);
+        }
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        submitText();
+        void submitText();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -224,7 +262,7 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
 
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            submitText();
+            void submitText();
         }
     };
 
@@ -261,10 +299,12 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
                             alt={uploadedImage.name}
                             title={uploadedImage.name}
                         />
+
                         <button
                             type="button"
                             className="remove-preview-btn"
                             aria-label="Xóa ảnh"
+                            disabled={sending}
                             onClick={() => setUploadedImage(null)}
                         >
                             <X size={13} strokeWidth={2.5} />
@@ -320,7 +360,6 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
                         disabled={sending}
                     />
 
-                    {/* Đưa toàn bộ action-icons vào bên trong input-entry giống IG */}
                     <div className="action-icons">
                         {!edit && (
                             <>
