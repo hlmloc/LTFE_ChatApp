@@ -70,3 +70,7 @@
 .btn-header-icon:hover {
     color: #6366f1;
 }
+
+.btn-header-icon--active {
+    color: #6366f1;
+}
