@@ -21,6 +21,7 @@ import type { RootState, AppDispatch } from "../store/Store";
 import type { UploadedImage } from "../services/MediaService";
 import { getEditTargetId, type DisplayMessage, type ReplyTarget } from "../data/messageProtocol";
 import { parseStickerMessage } from "../data/stickers";
+import { getDraftKey } from "../data/messageDrafts";
 
 import "./ChatDetail.css";
 
@@ -49,9 +50,17 @@ export default function ChatDetail({
     const username = useSelector(
         (state: RootState) => state.auth.username
     );
+    const draftKey = getDraftKey(username, type, name);
     const [online, setOnline] = useState<boolean>();
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [messageQuery, setMessageQuery] = useState("");
     const [replyTo, setReplyTo] = useState<ReplyTarget>();
     const [editDraft, setEditDraft] = useState<EditDraft>();
+
+    function closeSearch() {
+        setSearchOpen(false);
+        setMessageQuery("");
+    }
 
     const handleSendMessage = async (content: string) => {
         if (!username) {
@@ -291,9 +300,19 @@ export default function ChatDetail({
             className="chat-detail-container"
             data-conversation-id={conversationId}
         >
-            <ChatHeader name={name} online={online} onBack={onBack} />
+            <ChatHeader
+                name={name}
+                online={online}
+                onBack={onBack}
+                searchOpen={searchOpen}
+                onSearchToggle={() => searchOpen ? closeSearch() : setSearchOpen(true)}
+            />
 
             <MessageList
+                searchOpen={searchOpen}
+                searchQuery={messageQuery}
+                onSearchChange={setMessageQuery}
+                onCloseSearch={closeSearch}
                 onEdit={handleStartEditing}
                 onReply={handleReplyMessage}
                 onRecall={handleRecallMessage}
@@ -327,6 +346,8 @@ export default function ChatDetail({
             )}
 
             <ChatInput
+                key={draftKey ?? conversationId}
+                draftKey={draftKey}
                 onSend={handleSendMessage}
                 onSendImage={handleSendImage}
                 edit={editDraft && {
