@@ -65,3 +65,20 @@
     background: #f0eeff;
     color: #3525cd;
 }
+
+.message-search-bar__close:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.message-search-bar__close:disabled:hover {
+    background: transparent;
+    color: #6b7280;
+}
+
+@media (max-width: 480px) {
+    .message-search-bar {
+        gap: 4px;
+        padding: 8px;
+    }
+}
