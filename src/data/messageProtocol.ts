@@ -7,15 +7,28 @@ export type ReplyTarget = {
     text: string;
     messageId?: string;
 };
+export type ImageAttachment = {
+    kind: "image";
+    url: string;
+    name: string;
+    mimeType: string;
+    size: number;
+};
 
 type Packet =
     | {
-        kind: "message";
-        messageId: string;
-        format: "text";
-        text: string;
-        replyTo?: ReplyTarget;
-    }
+    kind: "message";
+    messageId: string;
+    format: "text";
+    text: string;
+    replyTo?: ReplyTarget;
+}
+    | {
+    kind: "attachment";
+    messageId: string;
+    attachment: ImageAttachment;
+    replyTo?: ReplyTarget;
+}
     | { kind: "edit"; eventId: string; targetId: string; text: string }
     | { kind: "recall"; eventId: string; targetId: string };
 
@@ -24,6 +37,7 @@ export type DisplayMessage = Message & {
     edited?: boolean;
     recalled?: boolean;
     replyTo?: ReplyTarget;
+    attachment?: ImageAttachment;
 };
 
 export function getEditTargetId(message: DisplayMessage): string | undefined {
@@ -37,12 +51,14 @@ export function encodeMessage(packet: Packet): string {
     return PREFIX + JSON.stringify(packet);
 }
 
+
 export function decodeMessage(mes: string): Packet | null {
     if (!mes.startsWith(PREFIX)) return null;
 
     try {
         const packet = JSON.parse(mes.slice(PREFIX.length));
 
+        // Tin nhắn gỡ
         if (
             packet?.kind === "recall" &&
             typeof packet.eventId === "string" && packet.eventId &&
@@ -51,6 +67,48 @@ export function decodeMessage(mes: string): Packet | null {
             return packet;
         }
 
+        // Tin nhắn hình ảnh
+        if (packet?.kind === "attachment") {
+            const attachment = packet.attachment;
+
+            if (
+                typeof packet.messageId === "string" &&
+                packet.messageId &&
+                attachment?.kind === "image" &&
+                typeof attachment.url === "string" &&
+                attachment.url.startsWith("https://") &&
+                typeof attachment.name === "string" &&
+                typeof attachment.mimeType === "string" &&
+                attachment.mimeType.startsWith("image/") &&
+                typeof attachment.size === "number" &&
+                Number.isFinite(attachment.size) &&
+                attachment.size >= 0
+            ) {
+                const reply = packet.replyTo;
+                const replyTo =
+                    typeof reply?.author === "string" &&
+                    typeof reply.text === "string"
+                        ? {
+                            author: reply.author,
+                            text: reply.text,
+                            messageId:
+                                typeof reply.messageId === "string"
+                                    ? reply.messageId
+                                    : undefined,
+                        }
+                        : undefined;
+
+                return {
+                    ...packet,
+                    attachment,
+                    replyTo,
+                };
+            }
+
+            return null;
+        }
+
+        // Tin nhắn chữ và chỉnh sửa
         if (typeof packet?.text !== "string") return null;
 
         if (
@@ -60,13 +118,18 @@ export function decodeMessage(mes: string): Packet | null {
             packet.messageId
         ) {
             const reply = packet.replyTo;
-            const replyTo = typeof reply?.author === "string" && typeof reply.text === "string"
-                ? {
-                    author: reply.author,
-                    text: reply.text,
-                    messageId: typeof reply.messageId === "string" ? reply.messageId : undefined,
-                }
-                : undefined;
+            const replyTo =
+                typeof reply?.author === "string" &&
+                typeof reply.text === "string"
+                    ? {
+                        author: reply.author,
+                        text: reply.text,
+                        messageId:
+                            typeof reply.messageId === "string"
+                                ? reply.messageId
+                                : undefined,
+                    }
+                    : undefined;
 
             return { ...packet, replyTo };
         }
@@ -103,7 +166,10 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
             continue;
         }
 
-        const id = packet.kind === "message" ? packet.messageId : packet.eventId;
+        const id =
+            packet.kind === "edit" || packet.kind === "recall"
+                ? packet.eventId
+                : packet.messageId;
         const key = JSON.stringify([record.name, packet.kind, id]);
 
         if (processed.has(key)) continue;
@@ -113,6 +179,13 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
             edits.set(JSON.stringify([record.name, packet.targetId]), packet.text);
         } else if (packet.kind === "recall") {
             recalls.add(JSON.stringify([record.name, packet.targetId]));
+        } else if (packet.kind === "attachment") {
+            messages.push({
+                ...record,
+                messageId: packet.messageId,
+                attachment: packet.attachment,
+                replyTo: packet.replyTo,
+            });
         } else {
             messages.push({
                 ...record,
@@ -129,7 +202,7 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
 
         const key = JSON.stringify([message.name, targetId]);
         if (message.messageId && recalls.has(key)) {
-            return { ...message, mes: recalledText, recalled: true, replyTo: undefined };
+            return { ...message, mes: recalledText, recalled: true, replyTo: undefined, attachment: undefined, };
         }
 
         const reply = message.replyTo;

@@ -5,6 +5,7 @@ import { useSelector, useDispatch } from "react-redux";
 import MessageList from "../components/chat_detail/MessageList";
 import ChatInput from "../components/chat_detail/ChatInput";
 import ChatHeader from "../components/chat_detail/ChatHeader";
+
 import { conversationService } from "../services/ConversationService";
 import { messageService } from "../services/MessageService";
 import { roomService } from "../services/RoomService";
@@ -17,6 +18,7 @@ import {
 } from "../store/slice/messageSlice";
 import { webSocketService } from "../services/WebSocketService";
 import type { RootState, AppDispatch } from "../store/Store";
+import type { UploadedImage } from "../services/MediaService";
 import { getEditTargetId, type DisplayMessage, type ReplyTarget } from "../data/messageProtocol";
 import { parseStickerMessage } from "../data/stickers";
 
@@ -74,7 +76,23 @@ export default function ChatDetail({
         dispatch(addMessage(message));
         setReplyTo(current => current === replyTo ? undefined : current);
     };
+    const handleSendImage = async (image: UploadedImage) => {
+        if (!username) {
+            throw new Error("Không tìm thấy tài khoản đăng nhập");
+        }
 
+        const message = await messageService.sendImageMessage(
+            name,
+            image,
+            username,
+            type === "direct" ? "people" : "room",
+            replyTo,
+        );
+
+        dispatch(addMessage(message));
+
+        setReplyTo(current => current === replyTo ? undefined : current);
+    };
     function handleStartEditing(message: DisplayMessage) {
         const targetId = getEditTargetId(message);
         if (!targetId) return;
@@ -119,7 +137,11 @@ export default function ChatDetail({
         setEditDraft(undefined);
         setReplyTo({
             author: message.name,
-            text: parseStickerMessage(message.mes) ? "Sticker" : message.mes.slice(0, 160),
+            text: message.attachment
+                ? "Hình ảnh"
+                : parseStickerMessage(message.mes)
+                    ? "Sticker"
+                    : message.mes.slice(0, 160),
             messageId: message.messageId,
         });
     }
@@ -300,6 +322,7 @@ export default function ChatDetail({
 
             <ChatInput
                 onSend={handleSendMessage}
+                onSendImage={handleSendImage}
                 edit={editDraft && {
                     targetId: editDraft.targetId,
                     originalText: editDraft.message.mes,

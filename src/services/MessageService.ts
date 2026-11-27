@@ -3,7 +3,7 @@ import { webSocketService } from "./WebSocketService";
 import type { ChatResponse } from "./WebSocketService";
 import type { Message } from "../types/message";
 import { parseStickerMessage } from "../data/stickers";
-import { encodeMessage, type ReplyTarget } from "../data/messageProtocol";
+import { encodeMessage, type ReplyTarget , type ImageAttachment, } from "../data/messageProtocol";
 
 function createMessageId(): string {
     return Array.from(
@@ -208,6 +208,46 @@ class MessageService {
         replyTo?: ReplyTarget,
     ): Promise<Message> {
         return this.sendMessage(to, mes, myUsername, "room", replyTo);
+    }
+
+
+    async sendImageMessage(
+        to: string,
+        image: Omit<ImageAttachment, "kind">,
+        myUsername: string,
+        chatType: "people" | "room",
+        replyTo?: ReplyTarget,
+    ): Promise<Message> {
+        if (!to.trim()) {
+            throw new Error("Không tìm thấy người nhận hoặc nhóm");
+        }
+
+        const wireMes = encodeMessage({
+            kind: "attachment",
+            messageId: createMessageId(),
+            attachment: {
+                kind: "image",
+                ...image,
+            },
+            replyTo,
+        });
+
+        await webSocketService.waitUntilConnected();
+
+        webSocketService.send("SEND_CHAT", {
+            type: chatType,
+            to,
+            mes: wireMes,
+        });
+
+        return {
+            id: -Date.now(),
+            name: myUsername,
+            to,
+            mes: wireMes,
+            createAt: new Date().toISOString(),
+            type: chatType === "people" ? 0 : 1,
+        };
     }
 
     sendEdit(

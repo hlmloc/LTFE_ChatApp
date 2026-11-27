@@ -1,11 +1,22 @@
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Bold, Camera, Check, Code, Italic, Link, List, Mic, Image as ImageIcon, SmilePlus, Plus, Send, Strikethrough, Type } from "lucide-react";
+import {
+    type FormEvent,
+    type KeyboardEvent,
+    type ChangeEvent,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState
+} from "react";
+import { Bold, Camera, Check, Code, Italic, Link, List, Mic, Image as ImageIcon, SmilePlus, Plus, Send, Strikethrough, Type, X } from "lucide-react";
 import StickerPicker from "../sticker/StickerPicker";
 import { createStickerMessage, type StickerId } from "../../data/stickers";
 import "./ChatInput.css";
+import { uploadImage, type UploadedImage } from "../../services/MediaService";
 
 type ChatInputProps = {
     onSend: (message: string) => Promise<void>;
+    onSendImage: (image: UploadedImage) => Promise<void>;
     edit?: {
         targetId: string;
         originalText: string;
@@ -28,10 +39,17 @@ const formats = [
     { id: "link", label: "Liên kết", icon: Link },
 ] as const;
 
-export default function ChatInput({ onSend, edit }: ChatInputProps) {
+export default function ChatInput({
+                                      onSend,
+                                      onSendImage,
+                                      edit
+                                  }: ChatInputProps) {
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState("");
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [toolbarOpen, setToolbarOpen] = useState(false);
     const sendingRef = useRef(false);
@@ -43,7 +61,9 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
     const text = edit?.text ?? message;
     const setText = edit?.onChange ?? setMessage;
     const content = text.trim();
-    const canSubmit = Boolean(content) && content !== edit?.originalText.trim() && !sending;
+    const canSubmit = edit
+        ? Boolean(content) && content !== edit.originalText.trim() && !sending
+        : (Boolean(content) || Boolean(uploadedImage)) && !sending && !uploadingImage;
     const submitLabel = edit ? "Lưu chỉnh sửa" : "Gửi tin nhắn";
 
     const closePicker = useCallback(() => setPickerOpen(false), []);
@@ -105,6 +125,56 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
         }
     };
 
+    const handleImageSelect = async (
+        event: ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        setError("");
+        setUploadedImage(null);
+        setUploadingImage(true);
+
+        try {
+            const result = await uploadImage(file);
+            setUploadedImage(result);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Không thể upload hình ảnh"
+            );
+        } finally {
+            setUploadingImage(false);
+            event.target.value = "";
+        }
+    };
+
+    const handleSendUploadedImage = async () => {
+        if (!uploadedImage || uploadingImage || sendingRef.current) {
+            return;
+        }
+
+        sendingRef.current = true;
+        setSending(true);
+        setError("");
+
+        try {
+            await onSendImage(uploadedImage);
+            setUploadedImage(null);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Không thể gửi hình ảnh"
+            );
+        } finally {
+            sendingRef.current = false;
+            setSending(false);
+        }
+    };
+
     const updateSelection = (start: number, end: number, replacement: string, nextStart: number, nextEnd: number) => {
         pendingSelection.current = [nextStart, nextEnd];
         setText(text.slice(0, start) + replacement + text.slice(end));
@@ -152,16 +222,26 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
         updateSelection(start, end, before + content + after, start + before.length, start + before.length + content.length);
     };
 
-    const submitText = () => {
+    const submitText = async () => {
         if (!canSubmit) return;
 
-        if (edit) edit.onSave(content);
-        else void sendContent(content, true);
+        if (edit) {
+            edit.onSave(content);
+            return;
+        }
+
+        if (uploadedImage) {
+            await handleSendUploadedImage();
+        }
+
+        if (content) {
+            await sendContent(content, true);
+        }
     };
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        submitText();
+        void submitText();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -182,7 +262,7 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
 
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            submitText();
+            void submitText();
         }
     };
 
@@ -196,11 +276,42 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
             className={edit ? "chat-input-container chat-input-container--editing" : "chat-input-container"}
             onSubmit={handleSubmit}
         >
+            <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                onChange={handleImageSelect}
+            />
             <button type="button" className="btn-camera">
                 <Camera size={20} strokeWidth={2.5} />
             </button>
 
             <div className="input-wrapper">
+                {uploadingImage && (
+                    <p className="upload-status">Đang tải hình ảnh lên...</p>
+                )}
+
+                {uploadedImage && (
+                    <div className="uploaded-image-preview">
+                        <img
+                            src={uploadedImage.url}
+                            alt={uploadedImage.name}
+                            title={uploadedImage.name}
+                        />
+
+                        <button
+                            type="button"
+                            className="remove-preview-btn"
+                            aria-label="Xóa ảnh"
+                            disabled={sending}
+                            onClick={() => setUploadedImage(null)}
+                        >
+                            <X size={13} strokeWidth={2.5} />
+                        </button>
+                    </div>
+                )}
+
                 {toolbarOpen && (
                     <div className="format-toolbar" role="toolbar" aria-label="Định dạng tin nhắn">
                         {formats.map(({ id, label, icon: Icon }) => (
@@ -218,6 +329,7 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
                         ))}
                     </div>
                 )}
+
                 <div className="input-entry">
                     <button
                         type="button"
@@ -234,6 +346,7 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
                     >
                         <Type size={19} />
                     </button>
+
                     <textarea
                         ref={inputRef}
                         rows={1}
@@ -246,61 +359,68 @@ export default function ChatInput({ onSend, edit }: ChatInputProps) {
                         onKeyDown={handleKeyDown}
                         disabled={sending}
                     />
+
+                    <div className="action-icons">
+                        {!edit && (
+                            <>
+                                <button type="button" aria-label="Ghi âm">
+                                    <Mic size={22} strokeWidth={1.75} />
+                                </button>
+
+                                <button
+                                    type="button"
+                                    aria-label="Gửi hình ảnh"
+                                    title="Gửi hình ảnh"
+                                    disabled={uploadingImage || sending}
+                                    onClick={() => imageInputRef.current?.click()}
+                                >
+                                    <ImageIcon size={22} strokeWidth={1.75} />
+                                </button>
+
+                                <div className="sticker-anchor" ref={pickerAnchorRef}>
+                                    <button
+                                        type="button"
+                                        className="sticker-trigger"
+                                        aria-label="Chọn sticker"
+                                        aria-expanded={pickerOpen}
+                                        aria-haspopup="dialog"
+                                        title="Sticker"
+                                        disabled={sending}
+                                        onClick={() => {
+                                            setPickerOpen(current => !current);
+                                            setToolbarOpen(false);
+                                        }}
+                                    >
+                                        <SmilePlus size={22} strokeWidth={1.75} />
+                                    </button>
+                                    {pickerOpen && (
+                                        <StickerPicker
+                                            onSelect={handleStickerSelect}
+                                            onClose={closePicker}
+                                            disabled={sending}
+                                        />
+                                    )}
+                                </div>
+
+                                <button type="button" aria-label="Thêm">
+                                    <Plus size={24} strokeWidth={1.75} />
+                                </button>
+                            </>
+                        )}
+
+                        <button
+                            type="submit"
+                            className={edit ? "save-edit-button" : "send-button"}
+                            disabled={!canSubmit}
+                            title={submitLabel}
+                            aria-label={submitLabel}
+                        >
+                            {edit ? <Check size={18} aria-hidden="true" /> : <Send size={20} strokeWidth={1.75} />}
+                        </button>
+                    </div>
                 </div>
+
                 {edit?.error && <p className="send-error" role="alert">{edit.error}</p>}
-            </div>
-
-            <div className="action-icons">
-                {!edit && (
-                    <>
-                        <button type="button" aria-label="Ghi âm">
-                            <Mic size={24} strokeWidth={1.5} />
-                        </button>
-
-                        <button type="button" aria-label="Gửi hình ảnh">
-                            <ImageIcon size={24} strokeWidth={1.5} />
-                        </button>
-
-                        <div className="sticker-anchor" ref={pickerAnchorRef}>
-                            <button
-                                type="button"
-                                className="sticker-trigger"
-                                aria-label="Chọn sticker"
-                                aria-expanded={pickerOpen}
-                                aria-haspopup="dialog"
-                                title="Sticker"
-                                disabled={sending}
-                                onClick={() => {
-                                    setPickerOpen(current => !current);
-                                    setToolbarOpen(false);
-                                }}
-                            >
-                                <SmilePlus size={24} strokeWidth={1.5} />
-                            </button>
-                            {pickerOpen && (
-                                <StickerPicker
-                                    onSelect={handleStickerSelect}
-                                    onClose={closePicker}
-                                    disabled={sending}
-                                />
-                            )}
-                        </div>
-
-                        <button type="button" aria-label="Thêm">
-                            <Plus size={26} strokeWidth={1.5} />
-                        </button>
-                    </>
-                )}
-
-                <button
-                    type="submit"
-                    className={edit ? "save-edit-button" : undefined}
-                    disabled={!canSubmit}
-                    title={submitLabel}
-                    aria-label={submitLabel}
-                >
-                    {edit ? <Check size={19} aria-hidden="true" /> : <Send size={22} />}
-                </button>
             </div>
 
             {!edit && error && <p className="send-error" role="alert">{error}</p>}
