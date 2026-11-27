@@ -11,10 +11,12 @@ import {
 import { Bold, Camera, Check, Code, Italic, Link, List, Mic, Image as ImageIcon, SmilePlus, Plus, Send, Strikethrough, Type, X } from "lucide-react";
 import StickerPicker from "../sticker/StickerPicker";
 import { createStickerMessage, type StickerId } from "../../data/stickers";
+import { readDraft, saveDraft } from "../../data/messageDrafts";
 import "./ChatInput.css";
 import { uploadImage, type UploadedImage } from "../../services/MediaService";
 
 type ChatInputProps = {
+    draftKey: string | null;
     onSend: (message: string) => Promise<void>;
     onSendImage: (image: UploadedImage) => Promise<void>;
     edit?: {
@@ -40,11 +42,12 @@ const formats = [
 ] as const;
 
 export default function ChatInput({
+                                      draftKey,
                                       onSend,
                                       onSendImage,
                                       edit
                                   }: ChatInputProps) {
-    const [message, setMessage] = useState("");
+    const [message, setMessage] = useState(() => readDraft(draftKey));
     const [sending, setSending] = useState(false);
     const [error, setError] = useState("");
     const [uploadingImage, setUploadingImage] = useState(false);
@@ -59,7 +62,11 @@ export default function ChatInput({
 
     const editTargetId = edit?.targetId;
     const text = edit?.text ?? message;
-    const setText = edit?.onChange ?? setMessage;
+    const updateMessage = (value: string) => {
+        setMessage(value);
+        saveDraft(draftKey, value);
+    };
+    const setText = edit?.onChange ?? updateMessage;
     const content = text.trim();
     const canSubmit = edit
         ? Boolean(content) && content !== edit.originalText.trim() && !sending
@@ -116,7 +123,12 @@ export default function ChatInput({
 
         try {
             await onSend(content);
-            if (clearMessage) setMessage("");
+            if (clearMessage) {
+                setMessage("");
+                if (readDraft(draftKey) === message) {
+                    saveDraft(draftKey, "");
+                }
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : "Không thể gửi tin nhắn");
         } finally {

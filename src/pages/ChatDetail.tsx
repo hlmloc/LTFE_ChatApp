@@ -21,6 +21,7 @@ import type { RootState, AppDispatch } from "../store/Store";
 import type { UploadedImage } from "../services/MediaService";
 import { getEditTargetId, type DisplayMessage, type ReplyTarget } from "../data/messageProtocol";
 import { parseStickerMessage } from "../data/stickers";
+import { getDraftKey } from "../data/messageDrafts";
 
 import "./ChatDetail.css";
 
@@ -49,6 +50,7 @@ export default function ChatDetail({
     const username = useSelector(
         (state: RootState) => state.auth.username
     );
+    const draftKey = getDraftKey(username, type, name);
     const [online, setOnline] = useState<boolean>();
     const [searchOpen, setSearchOpen] = useState(false);
     const [messageQuery, setMessageQuery] = useState("");
@@ -338,6 +340,8 @@ export default function ChatDetail({
             )}
 
             <ChatInput
+                key={draftKey ?? conversationId}
+                draftKey={draftKey}
                 onSend={handleSendMessage}
                 onSendImage={handleSendImage}
                 edit={editDraft && {
