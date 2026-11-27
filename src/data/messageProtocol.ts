@@ -48,7 +48,10 @@ export function getEditTargetId(message: DisplayMessage): string | undefined {
 }
 
 export function encodeMessage(packet: Packet): string {
-    return PREFIX + JSON.stringify(packet);
+    return PREFIX + JSON.stringify(packet).replace(
+        /[\uD800-\uDFFF]/g,
+        char => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0")
+    );
 }
 
 

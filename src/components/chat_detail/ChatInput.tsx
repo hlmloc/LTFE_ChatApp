@@ -278,6 +278,16 @@ export default function ChatInput({
         }
     };
 
+    const handleEmojiSelect = (emoji: string) => {
+        const input = inputRef.current;
+        if (!input || sendingRef.current || edit) return;
+
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const cursor = start + emoji.length;
+        updateSelection(start, end, emoji, cursor, cursor);
+    };
+
     const handleStickerSelect = (stickerId: StickerId) => {
         closePicker();
         void sendContent(createStickerMessage(stickerId), false);
@@ -393,11 +403,12 @@ export default function ChatInput({
                                     <button
                                         type="button"
                                         className="sticker-trigger"
-                                        aria-label="Chọn sticker"
+                                        aria-label="Chọn emoji hoặc sticker"
                                         aria-expanded={pickerOpen}
                                         aria-haspopup="dialog"
-                                        title="Sticker"
+                                        title="Emoji và sticker"
                                         disabled={sending}
+                                        onMouseDown={event => event.preventDefault()}
                                         onClick={() => {
                                             setPickerOpen(current => !current);
                                             setToolbarOpen(false);
@@ -408,6 +419,7 @@ export default function ChatInput({
                                     {pickerOpen && (
                                         <StickerPicker
                                             onSelect={handleStickerSelect}
+                                            onEmojiSelect={handleEmojiSelect}
                                             onClose={closePicker}
                                             disabled={sending}
                                         />
