@@ -30,6 +30,7 @@
     font-weight: 600;
 }
 
+.reply-draft button,
 .edit-draft button {
     display: grid;
     place-items: center;
@@ -41,6 +42,12 @@
     background: transparent;
     color: #4b5563;
     cursor: pointer;
+}
+
+.reply-draft button:hover,
+.edit-draft button:hover {
+    background: #e5e7eb;
+    color: #111827;
 }
 
 .edit-draft button:hover {
