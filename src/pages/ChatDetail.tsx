@@ -309,6 +309,7 @@ export default function ChatDetail({
             />
 
             <MessageList
+                peerName={type === "direct" ? name : undefined}
                 searchOpen={searchOpen}
                 searchQuery={messageQuery}
                 onSearchChange={setMessageQuery}
@@ -335,7 +336,13 @@ export default function ChatDetail({
             {!editDraft && replyTo && (
                 <div className="reply-draft">
                     <span>Đang trả lời {replyTo.author} · {replyTo.text}</span>
-                    <button type="button" onClick={() => setReplyTo(undefined)}>Hủy</button>
+                    <button
+                        type="button"
+                        aria-label="Hủy trả lời"
+                        title="Hủy trả lời"
+                        onClick={() => setReplyTo(undefined)}>
+                        <X size={18} aria-hidden="true" />
+                    </button>
                 </div>
             )}
 

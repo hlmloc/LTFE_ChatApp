@@ -29,11 +29,13 @@ type Packet =
     attachment: ImageAttachment;
     replyTo?: ReplyTarget;
 }
+    | { kind: "seen"; targetId: string }
     | { kind: "edit"; eventId: string; targetId: string; text: string }
     | { kind: "recall"; eventId: string; targetId: string };
 
 export type DisplayMessage = Message & {
     messageId?: string;
+    seenByRecipient?: boolean;
     edited?: boolean;
     recalled?: boolean;
     replyTo?: ReplyTarget;
@@ -60,6 +62,10 @@ export function decodeMessage(mes: string): Packet | null {
 
     try {
         const packet = JSON.parse(mes.slice(PREFIX.length));
+
+        if (packet?.kind === "seen" && typeof packet.targetId === "string" && packet.targetId) {
+            return { kind: "seen", targetId: packet.targetId };
+        }
 
         // Tin nhắn gỡ
         if (
@@ -159,6 +165,7 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
     const edits = new Map<string, string>();
     const recalls = new Set<string>();
     const recalledText = "Tin nhắn đã được gỡ";
+    const receipts = new Set<string>();
     const processed = new Set<string>();
 
     for (const record of records) {
@@ -166,6 +173,11 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
 
         if (!packet) {
             messages.push(record);
+            continue;
+        }
+
+        if (packet.kind === "seen") {
+            if (record.type === 0) receipts.add(JSON.stringify([record.to, record.name, packet.targetId]));
             continue;
         }
 
@@ -203,6 +215,9 @@ export function resolveMessages(records: Message[]): DisplayMessage[] {
         const targetId = getEditTargetId(message);
         if (!targetId) return message;
 
+        if (message.type === 0 && receipts.has(JSON.stringify([message.name, message.to, targetId]))) {
+            message = { ...message, seenByRecipient: true };
+        }
         const key = JSON.stringify([message.name, targetId]);
         if (message.messageId && recalls.has(key)) {
             return { ...message, mes: recalledText, recalled: true, replyTo: undefined, attachment: undefined, };

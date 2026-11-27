@@ -27,7 +27,12 @@ const messageSlice = createSlice({
                 messages: Message[];
             }>
         ) => {
-            state.messages = action.payload.messages;
+            const history = action.payload.messages;
+            const ids = new Set(history.map(message => message.id).filter(id => id > 0));
+            const live = state.loading
+                ? state.messages.filter(message => !ids.has(message.id))
+                : [];
+            state.messages = [...history, ...live];
             state.currentChatName = action.payload.chatName;
             state.loading = false;
             state.error = null;

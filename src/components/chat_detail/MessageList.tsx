@@ -1,10 +1,13 @@
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 
 import { getEditTargetId, resolveMessages, type DisplayMessage } from "../../data/messageProtocol";
 import { parseStickerMessage } from "../../data/stickers";
 import type { RootState } from "../../store/Store";
+import { addMessage } from "../../store/slice/messageSlice";
+import { messageService } from "../../services/MessageService";
+import { watchVisibleMessages } from "./watchVisibleMessages";
 import MessageBubble from "./MessageBubble";
 import MessageSearchBar from "./MessageSearchBar";
 import { matchesMessage } from "../../data/messageSearch";
@@ -15,6 +18,7 @@ type MessageListProps = {
     searchQuery: string;
     onSearchChange: (value: string) => void;
     onCloseSearch: () => void;
+    peerName?: string;
     onEdit: (message: DisplayMessage) => void;
     onReply: (message: DisplayMessage) => void;
     onRecall: (message: DisplayMessage) => void;
@@ -28,13 +32,26 @@ function closeMessageActions(button: HTMLButtonElement) {
     details.querySelector("summary")?.focus();
 }
 
-export default function MessageList({ searchOpen, searchQuery, onSearchChange, onCloseSearch, onEdit, onReply, onRecall }: MessageListProps) {
+export default function MessageList({searchOpen, searchQuery, onSearchChange, onCloseSearch, peerName,
+                                        onEdit,
+                                        onReply,
+                                        onRecall,
+                                    }: MessageListProps) {
+    const dispatch = useDispatch();
+    const chatName = useSelector((state: RootState) => state.messages.currentChatName);
     const messages = useSelector((state: RootState) => state.messages.messages);
     const loading = useSelector((state: RootState) => state.messages.loading);
     const error = useSelector((state: RootState) => state.messages.error);
     const currentUsername = useSelector((state: RootState) => state.auth.username);
 
     const visibleMessages = useMemo(() => resolveMessages(messages), [messages]);
+    const seenMessage = peerName && peerName === chatName
+        ? visibleMessages.filter(message =>
+            message.name === currentUsername && message.to === peerName && message.seenByRecipient
+        ).slice(-1)[0]
+        : undefined;
+
+    const readerInitials = peerName?.trim().slice(0, 2).toUpperCase();
     const query = searchOpen ? searchQuery.trim() : "";
     const items = useMemo(() => visibleMessages.map((message, index) => ({
         message,
@@ -61,6 +78,23 @@ export default function MessageList({ searchOpen, searchQuery, onSearchChange, o
         const targetRect = target.getBoundingClientRect();
         list.scrollTop += targetRect.top - listRect.top - (list.clientHeight - targetRect.height) / 2;
     }, [activeKey, query, loading, error]);
+
+    useEffect(() => {
+        const list = listRef.current;
+        if (!list || loading || error || !currentUsername || !peerName || peerName !== chatName) return;
+
+        let lastRead = -1;
+        visibleMessages.forEach((message, index) => {
+            if (message.name === peerName && message.to === currentUsername && message.seenByRecipient) {
+                lastRead = index;
+            }
+        });
+
+        return watchVisibleMessages(list, lastRead, index => {
+            const targetId = getEditTargetId(visibleMessages[index]);
+            if (targetId) dispatch(addMessage(messageService.sendSeen(peerName, currentUsername, targetId)));
+        });
+    }, [visibleMessages, currentUsername, peerName, chatName, loading, error, dispatch]);
 
     function navigate(direction: -1 | 1) {
         if (!results.length) return;
@@ -93,7 +127,7 @@ export default function MessageList({ searchOpen, searchQuery, onSearchChange, o
             <div className="message-list-container" ref={listRef}>
                 {loading ? <p>Đang tải tin nhắn...</p> : error ? <p>{error}</p> : items.length === 0 ? (
                     <p>Chưa có tin nhắn nào.</p>
-                ) : items.map(({ message, key }) => {
+                ) : items.map(({ message, key }, index) => {
                     const isMine = message.name === currentUsername;
                     const canManageMessage = isMine && Boolean(message.messageId);
                     const canEdit = isMine &&
@@ -108,6 +142,7 @@ export default function MessageList({ searchOpen, searchQuery, onSearchChange, o
                     return (
                         <div
                             key={key}
+                            data-read-index={peerName && message.name === peerName && message.to === currentUsername && getEditTargetId(message) ? index : undefined}
                             ref={active ? activeRef : undefined}
                             className={`message-item ${side}${matched ? " message-item--matched" : ""}${active ? " message-item--active-match" : ""}`}
                         >
@@ -191,6 +226,15 @@ export default function MessageList({ searchOpen, searchQuery, onSearchChange, o
                                 <small className="message-item__edited">
                                     Đã chỉnh sửa
                                 </small>
+                            )}
+                            {message === seenMessage && readerInitials && (
+                                <span
+                                    className="message-item__seen"
+                                    role="img"
+                                    aria-label={`${peerName} đã xem`}
+                                    title={`${peerName} đã xem`}>
+                                    {readerInitials}
+                                </span>
                             )}
                         </div>
                     );
