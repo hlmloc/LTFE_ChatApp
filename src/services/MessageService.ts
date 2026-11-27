@@ -164,7 +164,7 @@ class MessageService {
             throw new Error("Không tìm thấy người nhận hoặc nhóm");
         }
 
-        const wireMes = !replyTo && parseStickerMessage(content)
+        const wireMes = chatType === "room" && !replyTo && parseStickerMessage(content)
             ? content
             : encodeMessage({
                 kind: "message",
@@ -263,6 +263,10 @@ class MessageService {
             targetId,
             text,
         });
+    }
+
+    sendSeen(to: string, username: string, targetId: string): Message {
+        return this.sendAction(to, "people", username, { kind: "seen", targetId });
     }
 
     sendRecall(

@@ -309,6 +309,7 @@ export default function ChatDetail({
             />
 
             <MessageList
+                peerName={type === "direct" ? name : undefined}
                 searchOpen={searchOpen}
                 searchQuery={messageQuery}
                 onSearchChange={setMessageQuery}
