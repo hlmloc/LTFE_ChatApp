@@ -235,3 +235,28 @@
     line-height: 1;
     user-select: none;
 }
+
+.message-actions__time {
+    padding: 7px 10px 5px;
+    border-top: 1px solid #ffffff24;
+    color: #d1d5db;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.message-copy-feedback {
+    position: absolute;
+    left: 20px;
+    bottom: 16px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.message-copy-feedback:not(:empty) {
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: #242628;
+    color: #ffffff;
+    font-size: 13px;
+    box-shadow: 0 3px 12px #11182720;
+}

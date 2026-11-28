@@ -11,6 +11,7 @@ import { watchVisibleMessages } from "./watchVisibleMessages";
 import MessageBubble from "./MessageBubble";
 import MessageSearchBar from "./MessageSearchBar";
 import { matchesMessage } from "../../data/messageSearch";
+import { useClipboardFeedback } from "../../hooks/useClipboardFeedback";
 import "./MessageList.css";
 
 type MessageListProps = {
@@ -23,6 +24,19 @@ type MessageListProps = {
     onReply: (message: DisplayMessage) => void;
     onRecall: (message: DisplayMessage) => void;
 };
+
+function formatMessageTime(value: string): string {
+    if (!value?.trim()) return "";
+    const date = new Date(value.replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:)/, "$1T$2"));
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour12: false,
+    });
+}
 
 function isNearBottom(list: HTMLDivElement) {
     return list.scrollHeight - list.scrollTop - list.clientHeight <= 80;
@@ -42,6 +56,7 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                                         onRecall,
                                     }: MessageListProps) {
     const dispatch = useDispatch();
+    const { copy, feedback } = useClipboardFeedback();
     const chatName = useSelector((state: RootState) => state.messages.currentChatName);
     const messages = useSelector((state: RootState) => state.messages.messages);
     const loading = useSelector((state: RootState) => state.messages.loading);
@@ -194,6 +209,8 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                                 !message.recalled &&
                                 Boolean(getEditTargetId(message)) &&
                                 !parseStickerMessage(message.mes);
+                            const canCopy = !message.recalled && !message.attachment && !parseStickerMessage(message.mes);
+                            const sentAt = formatMessageTime(message.createAt);
                             const side = isMine ? "mine" : "other";
                             const matched = resultKeys.has(key);
                             const active = key === activeKey;
@@ -211,7 +228,7 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                                         </div>
                                     )}
 
-                                    <div className="message-item__line">
+                                    <div className="message-item__line" title={sentAt ? `Đã gửi: ${sentAt}` : undefined}>
                                         <MessageBubble
                                             text={message.mes}
                                             isMine={isMine}
@@ -253,6 +270,18 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                                                         Trả lời
                                                     </button>
 
+                                                    {canCopy && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={event => {
+                                                                void copy(message.mes);
+                                                                closeMessageActions(event.currentTarget);
+                                                            }}
+                                                        >
+                                                            Sao chép
+                                                        </button>
+                                                    )}
+
                                                     {canEdit && (
                                                         <button
                                                             type="button"
@@ -276,6 +305,7 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                                                             Gỡ tin nhắn
                                                         </button>
                                                     )}
+                                                    {sentAt && <span className="message-actions__time">{sentAt}</span>}
                                                 </div>
                                             </details>
                                         )}
@@ -300,6 +330,7 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                         })}
                     </div>
                 </div>
+                <div className="message-copy-feedback" role="status">{feedback}</div>
                 {showLatest && !searchOpen && !loading && !error && (
                     <button
                         type="button"
