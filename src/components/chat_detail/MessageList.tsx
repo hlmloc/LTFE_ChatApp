@@ -1,5 +1,5 @@
-import { MoreHorizontal } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, MoreHorizontal } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import { getEditTargetId, resolveMessages, type DisplayMessage } from "../../data/messageProtocol";
@@ -23,6 +23,10 @@ type MessageListProps = {
     onReply: (message: DisplayMessage) => void;
     onRecall: (message: DisplayMessage) => void;
 };
+
+function isNearBottom(list: HTMLDivElement) {
+    return list.scrollHeight - list.scrollTop - list.clientHeight <= 80;
+}
 
 function closeMessageActions(button: HTMLButtonElement) {
     const details = button.closest("details");
@@ -67,6 +71,59 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
     const activeKey = results[activeIndex]?.key;
     const listRef = useRef<HTMLDivElement>(null);
     const activeRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
+    const followLatest = useRef(true);
+    const [showLatest, setShowLatest] = useState(false);
+
+    const syncScroll = useCallback(() => {
+        const list = listRef.current;
+        if (!list) return;
+
+        if (loading || error) {
+            followLatest.current = true;
+            setShowLatest(false);
+            return;
+        }
+
+        if (searchOpen) {
+            followLatest.current = false;
+            return;
+        }
+
+        if (followLatest.current) list.scrollTop = list.scrollHeight;
+        followLatest.current = isNearBottom(list);
+        setShowLatest(!followLatest.current);
+    }, [loading, error, searchOpen]);
+
+    useLayoutEffect(() => {
+        syncScroll();
+    }, [items, syncScroll]);
+
+    useLayoutEffect(() => {
+        const list = listRef.current;
+        const content = contentRef.current;
+        if (!list || !content) return;
+
+        const observer = new ResizeObserver(syncScroll);
+        observer.observe(list);
+        observer.observe(content);
+        return () => observer.disconnect();
+    }, [syncScroll]);
+
+    function handleScroll() {
+        const list = listRef.current;
+        if (!list || loading || error || searchOpen) return;
+        followLatest.current = isNearBottom(list);
+        setShowLatest(!followLatest.current);
+    }
+
+    function scrollToLatest() {
+        const list = listRef.current;
+        if (!list) return;
+        followLatest.current = true;
+        list.scrollTop = list.scrollHeight;
+        setShowLatest(false);
+    }
 
     useEffect(() => {
         if (!activeKey || loading || error) return;
@@ -124,121 +181,136 @@ export default function MessageList({searchOpen, searchQuery, onSearchChange, on
                     onClose={closeSearch}
                 />
             )}
-            <div className="message-list-container" ref={listRef}>
-                {loading ? <p>Đang tải tin nhắn...</p> : error ? <p>{error}</p> : items.length === 0 ? (
-                    <p>Chưa có tin nhắn nào.</p>
-                ) : items.map(({ message, key }, index) => {
-                    const isMine = message.name === currentUsername;
-                    const canManageMessage = isMine && Boolean(message.messageId);
-                    const canEdit = isMine &&
-                        !message.attachment &&
-                        !message.recalled &&
-                        Boolean(getEditTargetId(message)) &&
-                        !parseStickerMessage(message.mes);
-                    const side = isMine ? "mine" : "other";
-                    const matched = resultKeys.has(key);
-                    const active = key === activeKey;
+            <div className="message-list-wrapper">
+                <div className="message-list-container" ref={listRef} onScroll={handleScroll}>
+                    <div className="message-list-content" ref={contentRef}>
+                        {loading ? <p>Đang tải tin nhắn...</p> : error ? <p>{error}</p> : items.length === 0 ? (
+                            <p>Chưa có tin nhắn nào.</p>
+                        ) : items.map(({ message, key }, index) => {
+                            const isMine = message.name === currentUsername;
+                            const canManageMessage = isMine && Boolean(message.messageId);
+                            const canEdit = isMine &&
+                                !message.attachment &&
+                                !message.recalled &&
+                                Boolean(getEditTargetId(message)) &&
+                                !parseStickerMessage(message.mes);
+                            const side = isMine ? "mine" : "other";
+                            const matched = resultKeys.has(key);
+                            const active = key === activeKey;
 
-                    return (
-                        <div
-                            key={key}
-                            data-read-index={peerName && message.name === peerName && message.to === currentUsername && getEditTargetId(message) ? index : undefined}
-                            ref={active ? activeRef : undefined}
-                            className={`message-item ${side}${matched ? " message-item--matched" : ""}${active ? " message-item--active-match" : ""}`}
-                        >
-                            {message.replyTo && (
-                                <div className="message-reply">
-                                    {message.replyTo.author} · {message.replyTo.text}
-                                </div>
-                            )}
+                            return (
+                                <div
+                                    key={key}
+                                    data-read-index={peerName && message.name === peerName && message.to === currentUsername && getEditTargetId(message) ? index : undefined}
+                                    ref={active ? activeRef : undefined}
+                                    className={`message-item ${side}${matched ? " message-item--matched" : ""}${active ? " message-item--active-match" : ""}`}
+                                >
+                                    {message.replyTo && (
+                                        <div className="message-reply">
+                                            {message.replyTo.author} · {message.replyTo.text}
+                                        </div>
+                                    )}
 
-                            <div className="message-item__line">
-                                <MessageBubble
-                                    text={message.mes}
-                                    isMine={isMine}
-                                    attachment={message.attachment}
-                                    recalled={message.recalled}
-                                />
+                                    <div className="message-item__line">
+                                        <MessageBubble
+                                            text={message.mes}
+                                            isMine={isMine}
+                                            attachment={message.attachment}
+                                            recalled={message.recalled}
+                                        />
 
-                                {!message.recalled && (
-                                    <details
-                                        className="message-actions"
-                                        name="message-actions"
-                                        onBlur={event => {
-                                            const details = event.currentTarget;
+                                        {!message.recalled && (
+                                            <details
+                                                className="message-actions"
+                                                name="message-actions"
+                                                onBlur={event => {
+                                                    const details = event.currentTarget;
 
-                                            if (!details.contains(event.relatedTarget)) {
-                                                details.open = false;
-                                            }
-                                        }}
-                                        onKeyDown={event => {
-                                            const details = event.currentTarget;
-                                            if (event.key !== "Escape" || !details.open) return;
+                                                    if (!details.contains(event.relatedTarget)) {
+                                                        details.open = false;
+                                                    }
+                                                }}
+                                                onKeyDown={event => {
+                                                    const details = event.currentTarget;
+                                                    if (event.key !== "Escape" || !details.open) return;
 
-                                            details.open = false;
-                                            details.querySelector("summary")?.focus();
-                                        }}
-                                    >
-                                        <summary aria-label="Thao tác với tin nhắn">
-                                            <MoreHorizontal size={18} aria-hidden="true" />
-                                        </summary>
-
-                                        <div className="message-actions__panel">
-                                            <button
-                                                type="button"
-                                                onClick={event => {
-                                                    closeMessageActions(event.currentTarget);
-                                                    onReply(message);
+                                                    details.open = false;
+                                                    details.querySelector("summary")?.focus();
                                                 }}
                                             >
-                                                Trả lời
-                                            </button>
+                                                <summary aria-label="Thao tác với tin nhắn">
+                                                    <MoreHorizontal size={18} aria-hidden="true" />
+                                                </summary>
 
-                                            {canEdit && (
-                                                <button
-                                                    type="button"
-                                                    onClick={event => {
-                                                        closeMessageActions(event.currentTarget);
-                                                        onEdit(message);
-                                                    }}
-                                                >
-                                                    Chỉnh sửa
-                                                </button>
-                                            )}
+                                                <div className="message-actions__panel">
+                                                    <button
+                                                        type="button"
+                                                        onClick={event => {
+                                                            closeMessageActions(event.currentTarget);
+                                                            onReply(message);
+                                                        }}
+                                                    >
+                                                        Trả lời
+                                                    </button>
 
-                                            {canManageMessage && (
-                                                <button
-                                                    type="button"
-                                                    onClick={event => {
-                                                        closeMessageActions(event.currentTarget);
-                                                        onRecall(message);
-                                                    }}
-                                                >
-                                                    Gỡ tin nhắn
-                                                </button>
-                                            )}
-                                        </div>
-                                    </details>
-                                )}
-                            </div>
+                                                    {canEdit && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={event => {
+                                                                closeMessageActions(event.currentTarget);
+                                                                onEdit(message);
+                                                            }}
+                                                        >
+                                                            Chỉnh sửa
+                                                        </button>
+                                                    )}
 
-                            {message.edited && (
-                                <small className="message-item__edited">
-                                    Đã chỉnh sửa
-                                </small>
-                            )}
-                            {message === seenMessage && readerInitials && (
-                                <span
-                                    className="message-item__seen"
-                                    role="img"
-                                    aria-label={`${peerName} đã xem`}
-                                    title={`${peerName} đã xem`}>
-                                    {readerInitials}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
+                                                    {canManageMessage && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={event => {
+                                                                closeMessageActions(event.currentTarget);
+                                                                onRecall(message);
+                                                            }}
+                                                        >
+                                                            Gỡ tin nhắn
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </details>
+                                        )}
+                                    </div>
+
+                                    {message.edited && (
+                                        <small className="message-item__edited">
+                                            Đã chỉnh sửa
+                                        </small>
+                                    )}
+                                    {message === seenMessage && readerInitials && (
+                                        <span
+                                            className="message-item__seen"
+                                            role="img"
+                                            aria-label={`${peerName} đã xem`}
+                                            title={`${peerName} đã xem`}>
+                                            {readerInitials}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                {showLatest && !searchOpen && !loading && !error && (
+                    <button
+                        type="button"
+                        className="message-scroll-latest"
+                        aria-label="Đến tin nhắn mới nhất"
+                        title="Đến tin nhắn mới nhất"
+                        onClick={scrollToLatest}
+                    >
+                        <ArrowDown size={20} aria-hidden="true" />
+                    </button>
+                )}
             </div>
         </>
     );
